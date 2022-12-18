@@ -40,6 +40,9 @@ The path that we want is the middle line (you can see it is showing an anaconda 
 
 ###
 
+## Examples overview
+We have a [presentation](https://docs.google.com/presentation/d/1-dWg_877A0LzcaBWMp4XA1AxHjMvfoKu/edit?usp=sharing&ouid=102194684503910859904&rtpof=true&sd=true) that describes example models and plots some results.
+
 
 # LICENSE
 
