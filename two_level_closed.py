@@ -122,11 +122,13 @@ def check_resonant_two_level_drive_population_dynamics(num=51):
     p = get_check_parameters()
     f_rabis = [0.25E6, 1.E6, 4.E6]
     fig, ax = plt.subplots(1, 1)
-    for f_rabi in f_rabis:
+    colors = get_sequential_colormap(len(f_rabis))
+    for idx, f_rabi in enumerate(f_rabis):
         p.f_rabi = f_rabi
         pulse_durations = np.linspace(p.dt, 2 / p.f_rabi, num)
         fig, ax = plot_two_level_monochrome_drive_population_dynamics(p, pulse_durations, fig=fig,
-                                                                      ax=ax, label=f'f_rabi = {f_rabi*1.E-6:.2f} MHz')
+                                                                      ax=ax, label=f'f_rabi = {f_rabi*1.E-6:.2f} MHz',
+                                                                      color=colors[idx])
     ax.grid()
     fig.legend()
     fig.savefig('check_resonant_two_level_drive_population_dynamics.pdf')
