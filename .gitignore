@@ -3,3 +3,4 @@
 /tests/.pytest_cache/
 /.idea
 qobjevo_compiled_coeff*
+/.pdf

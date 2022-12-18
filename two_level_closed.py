@@ -74,7 +74,6 @@ def plot_two_level_monochrome_drive_population_dynamics(p: TwoLevelUnitaryMonoch
     ax.plot(pulse_durations * 1.E6, nn, marker='o', **plotkwargs)
     ax.set_ylabel('<n>')
     ax.set_xlabel('time (us)')
-    ax.grid()
     return fig, ax
 
 
@@ -114,17 +113,25 @@ def get_check_parameters() -> TwoLevelUnitaryMonochromePulseParameters:
                                                  dt=1. / 1.E8)
     return p
 
-def check_resonant_two_level_drive_population_dynamics(num=10):
+def check_resonant_two_level_drive_population_dynamics(num=51):
     """
     1 MHz rabi frequency on resonance with a 1 GHz splitting, scan pulse duration over two Rabi periods
     :param num: Number of pulse durations to compute over two rabi periods
     :return:
     """
     p = get_check_parameters()
-    pulse_durations = np.linspace(p.dt, 2 / p.f_rabi, num)
-    plot_two_level_monochrome_drive_population_dynamics(p, pulse_durations, linestyle='None')
+    f_rabis = [0.25E6, 1.E6, 4.E6]
+    fig, ax = plt.subplots(1, 1)
+    for f_rabi in f_rabis:
+        p.f_rabi = f_rabi
+        pulse_durations = np.linspace(p.dt, 2 / p.f_rabi, num)
+        fig, ax = plot_two_level_monochrome_drive_population_dynamics(p, pulse_durations, fig=fig,
+                                                                      ax=ax, label=f'f_rabi = {f_rabi*1.E-6:.2f} MHz')
+    ax.grid()
+    fig.legend()
+    fig.savefig('check_resonant_two_level_drive_population_dynamics.pdf')
 
-def check_pi_pulse_spectrum(f_rabi=1.E6, scanwidth=10.E6, num=20):
+def check_pi_pulse_spectrum(f_rabi=1.E6, scanwidth=10.E6, num=51):
     """
     1 MHz rabi frequency pi pulse, 100 MHz splitting, scanning detuning over scanwidth
     :param scanwidth: Full width of frequency scan
@@ -135,7 +142,7 @@ def check_pi_pulse_spectrum(f_rabi=1.E6, scanwidth=10.E6, num=20):
     p.f_rabi = f_rabi
     frequencies = np.linspace(p.f_drive - 0.5 * scanwidth, p.f_drive + 0.5 * scanwidth, num)
     fig, ax = plt.subplots(1, 1)
-    n_pis = [0.2, 0.5, 1.0, 5.5, 20.5]
+    n_pis = [0.2, 0.5, 1.0, 5.0, 20.0]
     colors = get_sequential_colormap(num=len(n_pis))
     for i, n_pi in enumerate(n_pis):
         p.pulse_duration = n_pi * 0.5 / p.f_rabi
@@ -143,12 +150,17 @@ def check_pi_pulse_spectrum(f_rabi=1.E6, scanwidth=10.E6, num=20):
                                                            fig=fig, ax=ax, label=f'{n_pi}-pi pulse', color=colors[i])
     ax.set_title(f'f_rabi = {p.f_rabi * 1.E-6:.2f} MHz')
     fig.legend()
-    plt.show()
+    fig.savefig(f'check_pi_pulse_spectrum_f_rabi_{f_rabi * 1.E-6:.1f}_MHz.pdf')
 
 
 
 if __name__ == "__main__":
-    check_pi_pulse_spectrum()
+    check_resonant_two_level_drive_population_dynamics()
+    # check_pi_pulse_spectrum(f_rabi=3.0E6)
+    # check_pi_pulse_spectrum(f_rabi=1.0E6)
+    # check_pi_pulse_spectrum(f_rabi=0.3E6)
+    # check_pi_pulse_spectrum(f_rabi=0.1E6)
+
     plt.show()
     #check_resonant_two_level_drive_population_dynamics()
 
