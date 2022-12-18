@@ -105,6 +105,10 @@ def plot_two_level_monochrome_drive_spectrum(p: TwoLevelUnitaryMonochromePulsePa
 
 
 def get_check_parameters() -> TwoLevelUnitaryMonochromePulseParameters:
+    """
+    Gets example parameters set to be used in examples.
+    :return: Example parameters
+    """
     p = TwoLevelUnitaryMonochromePulseParameters(f_rabi=1.E6,
                                                  f_splitting=1.E9,
                                                  f_drive=1.E9,
@@ -135,7 +139,7 @@ def check_resonant_two_level_drive_population_dynamics(num=51):
 
 def check_pi_pulse_spectrum(f_rabi=1.E6, scanwidth=10.E6, num=51):
     """
-    1 MHz rabi frequency pi pulse, 100 MHz splitting, scanning detuning over scanwidth
+    Plots spectrum for square pulse
     :param scanwidth: Full width of frequency scan
     :param num: Number of frequencies to scan over
     :return
