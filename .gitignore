@@ -1,0 +1,6 @@
+/tests/testdata/
+/.pytest_cache/
+/tests/.pytest_cache/
+/.idea
+qobjevo_compiled_coeff*
+/.pdf
