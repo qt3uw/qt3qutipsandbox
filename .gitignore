@@ -3,5 +3,5 @@
 /tests/.pytest_cache/
 /.idea
 qobjevo_compiled_coeff*
-/.pdf
+*.pdf
 /__pycache__
