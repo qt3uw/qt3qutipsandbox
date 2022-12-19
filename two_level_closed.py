@@ -278,6 +278,7 @@ def check_ramsey_spectrum(f_splitting=1.E9, scanwidth=1.E6, num=101, dt=1.E-8):
     p.dt = dt
     p.pulse_duration = 0.25 / p.f_rabi
     p.f_splitting = f_splitting
+    p.f_drive = f_splitting
     colors = get_sequential_colormap(len(free_evolution_times))
     fig, ax = plt.subplots(1, 1)
     for idx, free_evolution_time in enumerate(free_evolution_times):
@@ -288,8 +289,7 @@ def check_ramsey_spectrum(f_splitting=1.E9, scanwidth=1.E6, num=101, dt=1.E-8):
                                                  color=colors[idx])
     ax.set_title(f'f_splitting = {f_splitting * 1.E-9:.2f} GHz')
     fig.legend()
-    fig.savefig('check_ramsey_spectrum.pdf')
-    plt.show()
+    fig.savefig(f'check_ramsey_spectrum_f_splitting_{f_splitting*1.E-9:.2f}.pdf')
 
 
 def check_ramsey_evolution(min_duration=10.E-9, max_duration=12.E-9, dt=0.1E-9, f_rabi=3.E7):
@@ -300,14 +300,13 @@ def check_ramsey_evolution(min_duration=10.E-9, max_duration=12.E-9, dt=0.1E-9, 
     ramsey_durations = np.arange(min_duration, max_duration, p.dt)
     fig, ax = plot_two_level_ramsey_evolution(p, ramsey_durations=ramsey_durations, linestyle='None', marker='o')
     fig.savefig('check_ramsey_evolution.pdf')
-    plt.show()
 
 
 
 if __name__ == "__main__":
-    check_ramsey_spectrum(f_splitting=1.E8, dt=1.E-8)
-    check_ramsey_spectrum(f_splitting=1.E9, dt=1.E-8)
-    check_ramsey_spectrum(f_splitting=2.88.E9, dt=0.3E-9)
+    # check_ramsey_spectrum(f_splitting=1.E8, dt=1.E-8)
+    # check_ramsey_spectrum(f_splitting=1.E9, dt=1.E-8)
+    # check_ramsey_spectrum(f_splitting=2.88E9, dt=0.3E-9)
     check_ramsey_evolution()
     # check_resonant_two_level_drive_population_dynamics()
     # check_pi_pulse_spectrum(f_rabi=3.0E6)
