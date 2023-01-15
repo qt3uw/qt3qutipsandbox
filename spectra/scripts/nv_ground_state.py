@@ -2,12 +2,12 @@ from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.constants import
+from scipy.constants import physical_constants, h
 
 from qutip import jmat, tensor, identity, Qobj
 
-uB = None
-uN = None
+uB = physical_constants['Bohr magneton'][0]
+uN = physical_constants['nuclear magneton'][0]
 
 
 @dataclass
@@ -19,15 +19,21 @@ class NVGroundParameters14N:
     f_axial_magnetic_hyperfine: float = -2.14E6
     f_transverse_magnetic_hyperfine: float = -2.7E6
     g_factor_electron: float = 2.0028
+    gyromagnetic_constant_nuclear: float = 1.93297E7 / (2 * np.pi) # Hz / Tesla
+
 
 def nnplus1(n):
     return n * (n + 1)
 
+
 def twonplus1(n):
     return 2 * n + 1
+
+
 def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
     """
     Gets ground state hamiltonian in frequency units (h=1) with representation ordering S, I
+    From Doherty et a., Physics Reports 528 (2013)
     :param p:
     :return:
     """
@@ -42,15 +48,32 @@ def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
                                                                                 (nnplus1(p.nuclear_spin) / 3))
     return hh
 
-def get_nv_interaction_hamiltonian:
+
+def get_nv_zeeman_hamiltonian(p:NVGroundParameters14N, bvector):
+    h_zeeman = uB / h * p.g_factor_electron * tensor(jmat(p.electron_spin, 'x') * bvector[0] +
+                                            jmat(p.electron_spin, 'y') * bvector[1] +
+                                            jmat(p.electron_spin, 'z') * bvector[2], identity(twonplus1(p.nuclear_spin))) + \
+          p.gyromagnetic_constant_nuclear * (tensor(identity(twonplus1(p.electron_spin)),
+                                                    jmat(p.nuclear_spin, 'x') * bvector[0] +
+                                                    jmat(p.nuclear_spin, 'y') * bvector[1] +
+                                                    jmat(p.nuclear_spin, 'z') * bvector[2]))
+    return h_zeeman
+
+
+def get_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector = np.zeros(3)):
+    hh = get_nv_ground_hamiltonian(p) + get_nv_zeeman_hamiltonian(p, bvector)
+    energies = hh.eigenenergies()
+    eigenstates = hh.eigenstates()
+    return energies, eigenstates
+
+
+def get_nv_ground_transition_matrix_elements(transition_hamiltonian):
+    #TODO
     raise(NotImplementedError)
 
 
-
-def get_nv_ground_eigenspectrum(p: NVGroundParameters14N):
-    hh = get_nv_ground_hamiltonian(p)
-    #print(hh.eigenstates())
-    energies = hh.eigenenergies()
+def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
+    energies, eigenstates = get_nv_ground_eigenspectrum(p, bvector=bvector)
     energies = (energies - np.min(energies)) * 1.E-6
     fig, (ax0, ax1) = plt.subplots(2, 1, sharex=True)
     ax1.set_ylabel('energy (MHz)')
@@ -70,5 +93,10 @@ def get_nv_ground_eigenspectrum(p: NVGroundParameters14N):
     plt.show()
 
 
+def plot_allowed_transitions(p: NVGroundParameters14N, hamiltonian):
+    #TODO
+    raise(NotImplementedError)
+
+
 if __name__ == "__main__":
-    get_nv_ground_eigenspectrum(NVGroundParameters14N())
+    plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=np.array([0., 0., 300.E-4]))
