@@ -3,6 +3,8 @@ from typing import List, Tuple, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+import plotly.graph_objs as go
+import plotly.express as px
 from scipy.constants import physical_constants, h
 
 from qutip import jmat, tensor, identity, Qobj
@@ -67,10 +69,6 @@ def get_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector = np.zeros(3))
     return energies, eigenstates
 
 
-def get_nv_ground_transition_matrix_elements(transition_hamiltonian):
-    #TODO
-    raise(NotImplementedError)
-
 def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List[str]):
     res = '|Jz>|Iz>: probability<br>'
     probs = np.abs(eigenstate.full().flatten()) ** 2
@@ -78,9 +76,47 @@ def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List
         res += f'{eigenstate_labels[i]}: {probs[i]:.4f}<br>'
     return res
 
+def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
+                               fig=None, xscale=1., xlabel=None):
+    """
+    Plots all of the transition amplitudes
+    :param transition_operator:
+    :param energies:
+    :param eigenstates:
+    :param fig:
+    :return:
+    """
+    hovertip_text = []
+    transition_energies = []
+    transition_amplitudes = []
+    for i, psi_i in enumerate(eigenstates):
+        for j, psi_j in enumerate(eigenstates):
+            transition_energy = energies[j] - energies[i]
+            if transition_energy > 0:
+                transition_energies.append(transition_energy)
+                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)))
+                hovertip_text.append(f'|{i}> --> |{j}>')
+    transition_energies = np.array(transition_energies)
+    transition_amplitudes = np.array(transition_amplitudes)
+
+    if fig is None:
+        fig = go.Figure()
+
+    scatter = go.Scatter(x=transition_energies * xscale, y=transition_amplitudes, hovertext=hovertip_text,
+                         mode='markers')
+    fig.add_trace(scatter)
+    fig.update_traces(marker=dict(size=12,
+                                  line=dict(width=2,
+                                            color='DarkSlateGrey')),
+                      selector=dict(mode='markers'))
+    fig.update_xaxes(title_text=xlabel)
+
+
+    return fig
+
 
 def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], eigenstate_labels: List[str]=None,
-                       ylabel=None, yscale=1.):
+                       ylabel=None, yscale=1., fig:go.Figure=None):
     """
     Plots energies as a function of eigenstate, with labels that give the probabilities in the uncoupled basis
     :param energies:
@@ -89,41 +125,53 @@ def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], e
     :param y_label:
     :return:
     """
-    import plotly.graph_objs as go
-    fig = go.Figure()
-    import plotly.express as px
 
     energies = (energies - np.min(energies)) * yscale
     color = px.colors.sequential.Plasma[0]
+    if fig is None:
+        fig = go.Figure()
+
     state_strings = []
     for state in eigenstates:
         state_strings.append(get_eigenstate_amplitude_hovertext(state, eigenstate_labels))
-    bar = go.Scatter(
+    scatter = go.Scatter(
         y=energies, hovertext=state_strings,
         marker_color=color, line={'width':0}
     )
-    fig.update_yaxes(title_text='Energy (MHz)')
-
-    fig.add_trace(bar)
-
-    bar.showlegend = False
-    #
-    # fig.update_yaxes(range=[cut_interval[1], max(df.max() * 1.1)], row=1, col=1)
-    # fig.update_xaxes(visible=False, row=1, col=1)
-    # fig.update_yaxes(range=[0, cut_interval[0]], row=2, col=1)
-    fig.show()
+    fig.update_yaxes(title_text=ylabel)
+    fig.add_trace(scatter)
+    return fig
 
 def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     energies, eigenstates = get_nv_ground_eigenspectrum(p, bvector=bvector)
     energies = (energies - np.min(energies))
     # FIXME: Do this more automatically
     eigenstate_labels = ['|1>|1>', '|1>|0>', '|1>|-1>', '|0>|1>', '|0>|0>', '|0>|-1>', '|-1>|1>', '|-1>|0>', '|-1>|-1>']
-    plot_eigenspectrum(energies, eigenstates, eigenstate_labels, ylabel='Energy (MHz)', yscale=1.E-6)
+    fig = plot_eigenspectrum(energies, eigenstates, eigenstate_labels, ylabel='Energy (MHz)', yscale=1.E-6)
+    fig.show()
+
+def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
+                                                  p: NVGroundParameters14N=NVGroundParameters14N()):
+    jjs = jmat(p.electron_spin)
+    iis = jmat(p.nuclear_spin)
+    electron_moment = uB * p.g_factor_electron * transition_bvec / h
+    nuclear_moment = p.gyromagnetic_constant_nuclear * transition_bvec
+    hh_int = tensor((electron_moment[0] * jjs[0] + electron_moment[1] * jjs[1] + electron_moment[2] * jjs[2]),
+                    identity(twonplus1(p.electron_spin))) + \
+             tensor(identity(twonplus1(p.electron_spin)),
+                    (nuclear_moment[0] * iis[0] + nuclear_moment[1] * iis[1] + nuclear_moment[2] * iis[2]),)
+    energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
+    fig = plot_transition_amplitudes(hh_int, energies, eigenstates, xscale=1.E-6, xlabel='transition frequency (MHz)')
+    fig.show()
 
 
-def plot_allowed_transitions(p: NVGroundParameters14N, hamiltonian):
-    #TODO
-    raise(NotImplementedError)
 
 if __name__ == "__main__":
-    plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=np.array([0., 0., 0.E-4]))
+    bmag = 300.E-4
+    phi = 1. * np.pi / 180. # Polar angle
+    theta = 45 * np.pi / 180.
+    static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.cos(theta), np.cos(phi)])
+    transition_bvec = np.array([0., 1.E-4, 0])
+    plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
+                                                  static_bvec=static_bvec)
+    plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
