@@ -77,7 +77,7 @@ def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List
     return res
 
 def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
-                               fig=None, xscale=1., xlabel=None):
+                               fig=None, xscale=1., xlabel=None, yscale=1., ylabel='rabi frequency (Hz)', title=None):
     """
     Plots all of the transition amplitudes
     :param transition_operator:
@@ -102,7 +102,7 @@ def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[flo
     if fig is None:
         fig = go.Figure()
 
-    scatter = go.Scatter(x=transition_energies * xscale, y=transition_amplitudes, hovertext=hovertip_text,
+    scatter = go.Scatter(x=transition_energies * xscale, y=transition_amplitudes * yscale, hovertext=hovertip_text,
                          mode='markers')
     fig.add_trace(scatter)
     fig.update_traces(marker=dict(size=12,
@@ -110,6 +110,7 @@ def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[flo
                                             color='DarkSlateGrey')),
                       selector=dict(mode='markers'))
     fig.update_xaxes(title_text=xlabel)
+    fig.update_yaxes(title_text=ylabel)
 
 
     return fig
@@ -136,9 +137,11 @@ def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], e
         state_strings.append(get_eigenstate_amplitude_hovertext(state, eigenstate_labels))
     scatter = go.Scatter(
         y=energies, hovertext=state_strings,
-        marker_color=color, line={'width':0}
+        marker_color=color, line={'width':0}, mode='markers', marker=dict(size=12,
+                                                                          line=dict(width=2, color='DarkSlateGrey'))
     )
     fig.update_yaxes(title_text=ylabel)
+    fig.update_xaxes(title_text='state index')
     fig.add_trace(scatter)
     return fig
 
@@ -148,6 +151,8 @@ def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     # FIXME: Do this more automatically
     eigenstate_labels = ['|1>|1>', '|1>|0>', '|1>|-1>', '|0>|1>', '|0>|0>', '|0>|-1>', '|-1>|1>', '|-1>|0>', '|-1>|-1>']
     fig = plot_eigenspectrum(energies, eigenstates, eigenstate_labels, ylabel='Energy (MHz)', yscale=1.E-6)
+    fig.update_layout(title=dict(text=f'B = ({bvector[0] * 1.E4:.2f} G, {bvector[1] * 1.E4:.2f} G, '
+                                      f'{bvector[2] * 1.E4:.2f} G)'))
     fig.show()
 
 def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
@@ -161,14 +166,20 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
              tensor(identity(twonplus1(p.electron_spin)),
                     (nuclear_moment[0] * iis[0] + nuclear_moment[1] * iis[1] + nuclear_moment[2] * iis[2]),)
     energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
-    fig = plot_transition_amplitudes(hh_int, energies, eigenstates, xscale=1.E-6, xlabel='transition frequency (MHz)')
+    fig = plot_transition_amplitudes(hh_int, energies, eigenstates, xscale=1.E-6, xlabel='transition frequency (MHz)',
+                                     yscale=1.E-3, ylabel='rabi frequency (kHz)')
+    fig.update_layout(title=dict(text=f'B = ({static_bvec[0] * 1.E4:.2f} G, {static_bvec[1] * 1.E4:.2f} G, '
+                                      f'{static_bvec[2] * 1.E4:.2f} G)<br>'
+                                      f'B_drive = ({transition_bvec[0] * 1.E4:.2f} G, '
+                                      f'{transition_bvec[1] * 1.E4:.2f} G, '
+                                      f'{transition_bvec[2] * 1.E4:.2f} G)'))
     fig.show()
 
 
 
 if __name__ == "__main__":
     bmag = 300.E-4
-    phi = 1. * np.pi / 180. # Polar angle
+    phi = 45. * np.pi / 180. # Polar angle
     theta = 45 * np.pi / 180.
     static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.cos(theta), np.cos(phi)])
     transition_bvec = np.array([0., 1.E-4, 0])
