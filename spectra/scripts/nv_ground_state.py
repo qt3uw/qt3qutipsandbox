@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List, Tuple, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,10 +72,48 @@ def get_nv_ground_transition_matrix_elements(transition_hamiltonian):
     #TODO
     raise(NotImplementedError)
 
+def get_eigenstate_amplitude_string(eigenstate: Qobj, eigenstate_labels: List[str]):
+    res = ''
+    for i, l in enumerate(eigenstate_labels):
+        res += f'{eigenstate_labels[i]}: {np.abs(eigenstate.data) ** 2}\n\r'
+    return res
+
+
+def plot_eigenspectrum(energies: List[float], eigenstates: List[Qobj], eigenstate_labels: List[str]=None, y_label=None):
+    """
+    Plots energies as a function of eigenstate, with labels that give the probabilities in the uncoupled basis
+    :param energies:
+    :param eigenstates:
+    :param eigenstate_labels:
+    :param y_label:
+    :return:
+    """
+    import plotly.graph_objs as go
+    from plotly.subplots import make_subplots
+    fig = go.Figure()
+    import plotly.express as px
+    import numpy as np
+
+    color = px.colors.sequential.Plasma[0]
+    raise(NotImplementedError('stopped here: eigenstate data format does not make sense to me yet'))
+    print(get_eigenstate_amplitude_string(eigenstates[0], eigenstate_labels))
+    bar = go.Bar(
+        y=energies, name='foo',
+        marker_color=color
+    )
+
+    bar.showlegend = False
+    #
+    # fig.update_yaxes(range=[cut_interval[1], max(df.max() * 1.1)], row=1, col=1)
+    # fig.update_xaxes(visible=False, row=1, col=1)
+    # fig.update_yaxes(range=[0, cut_interval[0]], row=2, col=1)
+    fig.show()
 
 def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     energies, eigenstates = get_nv_ground_eigenspectrum(p, bvector=bvector)
     energies = (energies - np.min(energies)) * 1.E-6
+    eigenstate_labels = ['|-1>|-1>', ] * 9 #FIXME
+    plot_eigenspectrum(energies, eigenstates, eigenstate_labels, y_label='Energy (MHz)')
     fig, (ax0, ax1) = plt.subplots(2, 1, sharex=True)
     ax1.set_ylabel('energy (MHz)')
     top_e_span = energies[-1] - energies[3]
@@ -96,7 +135,6 @@ def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
 def plot_allowed_transitions(p: NVGroundParameters14N, hamiltonian):
     #TODO
     raise(NotImplementedError)
-
 
 if __name__ == "__main__":
     plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=np.array([0., 0., 300.E-4]))

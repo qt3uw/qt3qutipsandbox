@@ -5,5 +5,7 @@ dependencies:
   - numpy
   - scipy
   - matplotlib
+  - plotly
+  - pandas
   - pip:
     - qutip
