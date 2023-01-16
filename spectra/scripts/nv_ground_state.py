@@ -63,8 +63,7 @@ def get_nv_zeeman_hamiltonian(p:NVGroundParameters14N, bvector):
 
 def get_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector = np.zeros(3)):
     hh = get_nv_ground_hamiltonian(p) + get_nv_zeeman_hamiltonian(p, bvector)
-    energies = hh.eigenenergies()
-    eigenstates = hh.eigenstates()
+    energies, eigenstates = hh.eigenstates()
     return energies, eigenstates
 
 
@@ -72,14 +71,16 @@ def get_nv_ground_transition_matrix_elements(transition_hamiltonian):
     #TODO
     raise(NotImplementedError)
 
-def get_eigenstate_amplitude_string(eigenstate: Qobj, eigenstate_labels: List[str]):
-    res = ''
+def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List[str]):
+    res = '|Jz>|Iz>: probability<br>'
+    probs = np.abs(eigenstate.full().flatten()) ** 2
     for i, l in enumerate(eigenstate_labels):
-        res += f'{eigenstate_labels[i]}: {np.abs(eigenstate.data) ** 2}\n\r'
+        res += f'{eigenstate_labels[i]}: {probs[i]:.4f}<br>'
     return res
 
 
-def plot_eigenspectrum(energies: List[float], eigenstates: List[Qobj], eigenstate_labels: List[str]=None, y_label=None):
+def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], eigenstate_labels: List[str]=None,
+                       ylabel=None, yscale=1.):
     """
     Plots energies as a function of eigenstate, with labels that give the probabilities in the uncoupled basis
     :param energies:
@@ -89,18 +90,21 @@ def plot_eigenspectrum(energies: List[float], eigenstates: List[Qobj], eigenstat
     :return:
     """
     import plotly.graph_objs as go
-    from plotly.subplots import make_subplots
     fig = go.Figure()
     import plotly.express as px
-    import numpy as np
 
+    energies = (energies - np.min(energies)) * yscale
     color = px.colors.sequential.Plasma[0]
-    raise(NotImplementedError('stopped here: eigenstate data format does not make sense to me yet'))
-    print(get_eigenstate_amplitude_string(eigenstates[0], eigenstate_labels))
-    bar = go.Bar(
-        y=energies, name='foo',
-        marker_color=color
+    state_strings = []
+    for state in eigenstates:
+        state_strings.append(get_eigenstate_amplitude_hovertext(state, eigenstate_labels))
+    bar = go.Scatter(
+        y=energies, hovertext=state_strings,
+        marker_color=color, line={'width':0}
     )
+    fig.update_yaxes(title_text='Energy (MHz)')
+
+    fig.add_trace(bar)
 
     bar.showlegend = False
     #
@@ -111,25 +115,10 @@ def plot_eigenspectrum(energies: List[float], eigenstates: List[Qobj], eigenstat
 
 def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     energies, eigenstates = get_nv_ground_eigenspectrum(p, bvector=bvector)
-    energies = (energies - np.min(energies)) * 1.E-6
-    eigenstate_labels = ['|-1>|-1>', ] * 9 #FIXME
-    plot_eigenspectrum(energies, eigenstates, eigenstate_labels, y_label='Energy (MHz)')
-    fig, (ax0, ax1) = plt.subplots(2, 1, sharex=True)
-    ax1.set_ylabel('energy (MHz)')
-    top_e_span = energies[-1] - energies[3]
-    bottom_e_span = energies[2] - energies[0]
-    ax0.set_ylim(energies[3] - 0.05 * top_e_span, energies[-1] + 0.05 * top_e_span)
-    ax1.set_ylim(energies[0] - 0.05 * bottom_e_span, energies[2] + 0.05 * bottom_e_span)
-    ax0.spines['bottom'].set_visible(False)
-    ax1.spines['top'].set_visible(False)
-    ax0.xaxis.tick_top()
-    ax0.tick_params(labeltop=False)  # don't put tick labels at the top
-    ax1.xaxis.tick_bottom()
-    ax1.set_xticks([])
-    for a in [ax0, ax1]:
-        a.hlines(energies, color='k', xmin=0, xmax=1)
-        a.grid()
-    plt.show()
+    energies = (energies - np.min(energies))
+    # FIXME: Do this more automatically
+    eigenstate_labels = ['|1>|1>', '|1>|0>', '|1>|-1>', '|0>|1>', '|0>|0>', '|0>|-1>', '|-1>|1>', '|-1>|0>', '|-1>|-1>']
+    plot_eigenspectrum(energies, eigenstates, eigenstate_labels, ylabel='Energy (MHz)', yscale=1.E-6)
 
 
 def plot_allowed_transitions(p: NVGroundParameters14N, hamiltonian):
@@ -137,4 +126,4 @@ def plot_allowed_transitions(p: NVGroundParameters14N, hamiltonian):
     raise(NotImplementedError)
 
 if __name__ == "__main__":
-    plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=np.array([0., 0., 300.E-4]))
+    plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=np.array([0., 0., 0.E-4]))
