@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objs as go
 import plotly.express as px
+
 from scipy.constants import physical_constants, h
 
 from qutip import jmat, tensor, identity, Qobj
@@ -167,9 +168,9 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
 
 
 if __name__ == "__main__":
-    bmag = 300.E-4
-    phi = 1. * np.pi / 180. # Polar angle
-    theta = 45 * np.pi / 180.
+    bmag = 24.E-4
+    phi = 90. * np.pi / 180. # Polar angle
+    theta = 0. * np.pi / 180.
     static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.cos(theta), np.cos(phi)])
     transition_bvec = np.array([0., 1.E-4, 0])
     plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
