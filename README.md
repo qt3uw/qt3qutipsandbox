@@ -12,7 +12,7 @@ cd qt3qutipsandbox
 ```
 You can use the .yml file contained in the repository to set up an anaconda environment with the required packages using the following command (if you are in windows, you will need to switch from the git bash terminal to the "anaconda prompt" terminal that can be found in start menu if you've installed anaconda, on a mac or linux you can use the good old terminal for everything):
 ```
-conda env create -f qt3qutipsandbox.yml
+conda env create -f environment.yml
 ```
 This creates an anaconda environment called "qt3qutipsandbox", which contains all of the dependencies of this repository.  You can activate that environment with the following command:
 ```

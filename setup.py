@@ -3,10 +3,10 @@ from setuptools import setup
 setup(
     name='qt3qutipsandbox',
     version='',
-    packages=[''],
+    packages=['spectra'],
     url='',
-    license='BSD 3-clause',
-    author='mfpars',
+    license='',
+    author='maxwe',
     author_email='',
     description=''
 )

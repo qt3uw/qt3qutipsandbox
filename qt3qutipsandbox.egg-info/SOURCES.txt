@@ -1,0 +1,9 @@
+LICENSE
+README.md
+setup.py
+qt3qutipsandbox.egg-info/PKG-INFO
+qt3qutipsandbox.egg-info/SOURCES.txt
+qt3qutipsandbox.egg-info/dependency_links.txt
+qt3qutipsandbox.egg-info/top_level.txt
+spectra/__init__.py
+spectra/nv_ground_state.py
