@@ -195,6 +195,7 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
                                                   p: NVGroundParameters14N=NVGroundParameters14N()):
     """
     NV axis is in the (0, 0, 1) direction
+    This has been checked against https://doi.org/10.1038/s41598-020-61669-w for the case where NV-axis is aligned to field.
     :param transition_bvec: RF field vector in Tesla
     :param static_bvec: Bias field vector in Tesla
     :param p: Parameters
@@ -215,8 +216,8 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
 
 
 if __name__ == "__main__":
-    bmag = 100.E-4
-    phi = 45. * np.pi / 180. # Polar angle
+    bmag = 4.6E-3
+    phi = 0. * np.pi / 180. # Polar angle
     theta = 0.
     static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)])
     transition_bvec = np.array([0., 1.E-4, 0.E-4])
