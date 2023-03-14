@@ -3,6 +3,7 @@ from typing import List, Tuple, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import plotly.graph_objs as go
 import plotly.express as px
 
@@ -77,6 +78,44 @@ def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List
         res += f'{eigenstate_labels[i]}: {probs[i]:.4f}<br>'
     return res
 
+def get_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj]):
+    """
+    Given a transition operator, set of energies and energy eigenstates computes the transition energies and amplitudes
+    :param transition_operator: Operator of the transition matrix written in the energy eigenbasis.
+    :param energies: Energies
+    :param eigenstates: Energy eigenstates corresponding to energies
+    :return: transition energies, transition amplitudes
+    """
+    transition_energies = []
+    transition_amplitudes = []
+    for i, psi_i in enumerate(eigenstates):
+        for j, psi_j in enumerate(eigenstates):
+            transition_energy = energies[j] - energies[i]
+            if transition_energy > 0:
+                transition_energies.append(transition_energy)
+                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)))
+    transition_energies = np.array(transition_energies)
+    transition_amplitudes = np.array(transition_amplitudes)
+    return transition_energies, transition_amplitudes
+
+def get_magnetic_transition_operator(p:NVGroundParameters14N, transition_bvec) -> Qobj:
+    """
+    Gets the zeeman transition hamiltonian
+    :param p: State parameters for an NV- like state
+    :param transition_bvec: pk-pk magnetic field vector for oscillating field
+    :return: transition operator Qobj
+    """
+    jjs = jmat(p.electron_spin)
+    iis = jmat(p.nuclear_spin)
+    electron_moment = uB * p.g_factor_electron * transition_bvec / h
+    nuclear_moment = p.gyromagnetic_constant_nuclear * transition_bvec
+    hh_int = tensor((electron_moment[0] * jjs[0] + electron_moment[1] * jjs[1] + electron_moment[2] * jjs[2]),
+                    identity(twonplus1(p.electron_spin))) + \
+             tensor(identity(twonplus1(p.electron_spin)),
+                    (nuclear_moment[0] * iis[0] + nuclear_moment[1] * iis[1] + nuclear_moment[2] * iis[2]))
+    return hh_int
+
+
 def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
                                fig=None, xscale=1., xlabel=None, yscale=1., ylabel='rabi frequency (Hz)', title=None):
     """
@@ -88,17 +127,13 @@ def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[flo
     :return:
     """
     hovertip_text = []
-    transition_energies = []
-    transition_amplitudes = []
-    for i, psi_i in enumerate(eigenstates):
-        for j, psi_j in enumerate(eigenstates):
-            transition_energy = energies[j] - energies[i]
-            if transition_energy > 0:
-                transition_energies.append(transition_energy)
-                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)))
+
+    for i in range(energies.shape[0]):
+        for j in range(energies.shape[0]):
+            if (energies[j] - energies[i]) > 0:
                 hovertip_text.append(f'|{i}> --> |{j}>')
-    transition_energies = np.array(transition_energies)
-    transition_amplitudes = np.array(transition_amplitudes)
+
+    transition_energies, transition_amplitudes = get_transition_amplitudes(transition_operator, energies, eigenstates)
 
     if fig is None:
         fig = go.Figure()
@@ -158,14 +193,15 @@ def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
 
 def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
                                                   p: NVGroundParameters14N=NVGroundParameters14N()):
-    jjs = jmat(p.electron_spin)
-    iis = jmat(p.nuclear_spin)
-    electron_moment = uB * p.g_factor_electron * transition_bvec / h
-    nuclear_moment = p.gyromagnetic_constant_nuclear * transition_bvec
-    hh_int = tensor((electron_moment[0] * jjs[0] + electron_moment[1] * jjs[1] + electron_moment[2] * jjs[2]),
-                    identity(twonplus1(p.electron_spin))) + \
-             tensor(identity(twonplus1(p.electron_spin)),
-                    (nuclear_moment[0] * iis[0] + nuclear_moment[1] * iis[1] + nuclear_moment[2] * iis[2]),)
+    """
+    NV axis is in the (0, 0, 1) direction
+    :param transition_bvec: RF field vector in Tesla
+    :param static_bvec: Bias field vector in Tesla
+    :param p: Parameters
+    :return: plotly figure
+    """
+    p=NVGroundParameters14N()
+    hh_int = get_magnetic_transition_operator(p, transition_bvec)
     energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
     fig = plot_transition_amplitudes(hh_int, energies, eigenstates, xscale=1.E-6, xlabel='transition frequency (MHz)',
                                      yscale=1.E-3, ylabel='rabi frequency (kHz)')
@@ -175,21 +211,16 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
                                       f'{transition_bvec[1] * 1.E4:.2f} G, '
                                       f'{transition_bvec[2] * 1.E4:.2f} G)'))
     fig.show()
-
+    return fig
 
 
 if __name__ == "__main__":
-<<<<<<< HEAD:spectra/scripts/nv_ground_state.py
-    bmag = 300.E-4
+    bmag = 100.E-4
     phi = 45. * np.pi / 180. # Polar angle
-    theta = 45 * np.pi / 180.
-=======
-    bmag = 24.E-4
-    phi = 90. * np.pi / 180. # Polar angle
-    theta = 0. * np.pi / 180.
->>>>>>> 4905c04a3ed21c0b060ed32af23c37de05971049:spectra/nv_ground_state.py
-    static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.cos(theta), np.cos(phi)])
-    transition_bvec = np.array([0., 1.E-4, 0])
+    theta = 0.
+    static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)])
+    transition_bvec = np.array([0., 1.E-4, 0.E-4])
+
     plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
                                                   static_bvec=static_bvec)
     plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
