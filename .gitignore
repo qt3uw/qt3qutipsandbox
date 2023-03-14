@@ -4,4 +4,6 @@
 /.idea
 qobjevo_compiled_coeff*
 *.pdf
+*.ipynb_checkpoints
+*.egg-info
 /__pycache__
