@@ -115,6 +115,18 @@ def get_magnetic_transition_operator(p:NVGroundParameters14N, transition_bvec) -
                     (nuclear_moment[0] * iis[0] + nuclear_moment[1] * iis[1] + nuclear_moment[2] * iis[2]))
     return hh_int
 
+def get_tetrahedral_fields(bvec, phi):
+    """
+    Given a field vector which assumes NV along the z-axis, computes the relative field vectors for all other orientations
+    assuming those orientations are also along the z-axis.  Basically, this allows easy calculation of spectrum of all NV
+    orientations in the tetrahedron.
+    :param bvec:
+    :param phi:
+
+    Returns: List of three field vectors
+    """
+    raise NotImplementedError('Not yet implemented')
+
 
 def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
                                fig=None, xscale=1., xlabel=None, yscale=1., ylabel='rabi frequency (Hz)', title=None):

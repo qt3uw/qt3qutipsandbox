@@ -8,5 +8,6 @@ dependencies:
   - jupyter
   - plotly
   - pandas
+  - pytest
   - pip:
     - qutip
