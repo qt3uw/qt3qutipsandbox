@@ -264,6 +264,7 @@ def plot_power_broadened_spectrum(transition_freq, drive_freq, res = 1024):
 
 if __name__ == "__main__":
 
+
     bmag = 4.6E-3
     phi = 0. * np.pi / 180. # Polar angle
     theta = 0.
