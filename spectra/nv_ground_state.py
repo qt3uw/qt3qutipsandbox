@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Sequence
+from mpl_toolkits.mplot3d import Axes3D
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,6 +34,45 @@ def nnplus1(n):
 
 def twonplus1(n):
     return 2 * n + 1
+
+
+def rodrigues(bvec, k):
+    """
+    The Rodrigues rotation calculation for a given vector bvec about unit vector k
+    :param bvec: vector to be rotated
+    :param k: axis of rotation
+    :return: rotated vector
+    """
+    crossp = [k[1]*bvec[2], -k[0]*bvec[2], k[0]*bvec[1] - k[1]*bvec[0]]
+    dotp = k[0]*bvec[0] + k[1]*bvec[1]
+    fin = -np.array(bvec)/3 + np.array(crossp)*(8/9)**0.5 + np.array(k)*(4*dotp/3)
+
+    return [fin[0], fin[1], fin[2]]
+
+def bvec_rotation(bvec, nvvec):
+    """
+    Rotates a magnetic field vector such that a new NV-configuration is considered the 'default.'
+    Acts to rotate the coordinate system.
+    :param bvec: magnetic field vector in Cartesian
+    :param nnvec: new NV-configuration vector in Cartesian
+    :return: rotated magnetic field vector
+    """
+    k1 = nvvec[1]/(nvvec[0]**2 + nvvec[1]**2)**0.5
+    k2 = -nvvec[0]/(nvvec[0]**2 + nvvec[1]**2)**0.5
+
+    return rodrigues(bvec, [k1, k2, 0]) # rotation about unit vector k
+
+def get_bfields(bvec):
+    """
+    Gives magnetic field vectors for all N configurations
+    :param bvec: magnetic field w.r.t. z-axis aligned NV-axis
+    :return: an array of magnetic field vectors
+    """
+    b1 = bvec_rotation(bvec, [0, (8/9)**0.5, -1/3])
+    b2 = bvec_rotation(bvec, [-(6/9)**0.5, -(8/36)**0.5, -1/3])
+    b3 = bvec_rotation(bvec, [(6/9)**0.5, -(8/36)**0.5, -1/3])
+
+    return [bvec, b1, b2, b3]
 
 
 def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
@@ -121,7 +161,7 @@ def get_magnetic_transition_operator(p:NVGroundParameters14N, transition_bvec) -
 def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
                                fig=None, xscale=1., xlabel=None, yscale=1., ylabel='rabi frequency (Hz)', title=None):
     """
-    Plots all of the transition amplitudes
+    Plots of all of the transition amplitudes
     :param transition_operator:
     :param energies:
     :param eigenstates:
@@ -218,6 +258,7 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
 
 
 if __name__ == "__main__":
+    _plot_nvs()
     bmag = 4.6E-3
     phi = 0. * np.pi / 180. # Polar angle
     theta = 0.
