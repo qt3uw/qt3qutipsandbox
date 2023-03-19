@@ -256,9 +256,14 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
     fig.show()
     return fig
 
+def plot_power_broadened_spectrum(transition_freq, drive_freq, res = 1024):
+    flin = linspace(min(transition_freq), max(transition_freq), num = res)
+    spectrum = np.zeros_like(flin)
+    
+
 
 if __name__ == "__main__":
-    _plot_nvs()
+
     bmag = 4.6E-3
     phi = 0. * np.pi / 180. # Polar angle
     theta = 0.
