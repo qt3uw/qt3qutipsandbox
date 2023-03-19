@@ -49,8 +49,8 @@ def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
          p.f_transverse_magnetic_hyperfine * (tensor(jmat(p.electron_spin, 'x'), jmat(p.nuclear_spin, 'x')) +
                                               tensor(jmat(p.electron_spin, 'y'), jmat(p.nuclear_spin, 'y'))) + \
          p.f_nuclear_quadrupole * tensor(identity(twonplus1(p.electron_spin)), (jmat(p.nuclear_spin, 'z') ** 2 -
-                                                                                identity(twonplus1(p.nuclear_spin)))* \
-                                                                                (nnplus1(p.nuclear_spin) / 3))
+                                                                                identity(twonplus1(p.nuclear_spin)) *
+                                                                                (nnplus1(p.nuclear_spin) / 3)))
     return hh
 
 
@@ -78,6 +78,7 @@ def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List
         res += f'{eigenstate_labels[i]}: {probs[i]:.4f}<br>'
     return res
 
+
 def get_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj]):
     """
     Given a transition operator, set of energies and energy eigenstates computes the transition energies and amplitudes
@@ -97,6 +98,7 @@ def get_transition_amplitudes(transition_operator: Qobj, energies: Sequence[floa
     transition_energies = np.array(transition_energies)
     transition_amplitudes = np.array(transition_amplitudes)
     return transition_energies, transition_amplitudes
+
 
 def get_magnetic_transition_operator(p:NVGroundParameters14N, transition_bvec) -> Qobj:
     """
@@ -147,8 +149,6 @@ def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[flo
                       selector=dict(mode='markers'))
     fig.update_xaxes(title_text=xlabel)
     fig.update_yaxes(title_text=ylabel)
-
-
     return fig
 
 
@@ -181,6 +181,7 @@ def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], e
     fig.add_trace(scatter)
     return fig
 
+
 def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     energies, eigenstates = get_nv_ground_eigenspectrum(p, bvector=bvector)
     energies = (energies - np.min(energies))
@@ -190,6 +191,7 @@ def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     fig.update_layout(title=dict(text=f'B = ({bvector[0] * 1.E4:.2f} G, {bvector[1] * 1.E4:.2f} G, '
                                       f'{bvector[2] * 1.E4:.2f} G)'))
     fig.show()
+
 
 def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
                                                   p: NVGroundParameters14N=NVGroundParameters14N()):
