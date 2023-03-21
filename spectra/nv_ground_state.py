@@ -256,10 +256,52 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
     fig.show()
     return fig
 
-def plot_power_broadened_spectrum(transition_freq, drive_freq, res = 1024):
-    flin = linspace(min(transition_freq), max(transition_freq), num = res)
-    spectrum = np.zeros_like(flin)
-    
+def lorentz_lineshape(lspace, transition_energy, transition_amplitude):
+    """
+    Gives a Lorentzian lineshape for a spectrum where spontaneous relaxation processes are negligible.
+    :param lspace: linespace
+    :param transition_energy: acts as position of maximum
+    :param transition_amplitude: used to get FWHM
+    :return: Lorentzian function
+    """
+    x = lspace
+    if transition_amplitude == 0:
+        return 0
+    else:
+        x = (x - transition_energy)/(2*transition_amplitude) # Relaxation constant = transition amplitude
+        return 1/(1+np.square(x))
+
+
+def plot_power_broadened_spectrum(transition_bvec, static_bvec, p: NVGroundParameters14N=NVGroundParameters14N(),
+                                       tescale=1., xlabel=None, tascale=1., ylabel=None, title=None,
+                                       res = 1024):
+    """
+    Plots the power-broadened spectrum. Applied magnetic field and RF field amplitude are fixed.
+    :param transition_bvec: The magnetic field given by electromagnetic wave.
+    :param static_bvec: The applied magnetic field
+    :param p: Parameters describing the NV center
+    :param res: resolution
+    :return: returns a spectrum to be plotted.
+    """
+    p=NVGroundParameters14N()
+    hh_int = get_magnetic_transition_operator(p, transition_bvec)
+    energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
+    transition_energies, transition_amplitudes = get_transition_amplitudes(hh_int, energies, eigenstates)
+
+    transition_energies = np.array(transition_energies)*tescale
+    transition_amplitudes = np.array(transition_amplitudes)*tascale
+
+    lspace = np.linspace(min(transition_energies), max(transition_energies), num = res)
+    spectrum = np.zeros_like(lspace)
+
+    for i in range(len(transition_energies)):
+        spectrum += lorentz_lineshape(lspace, transition_energies[i], transition_amplitudes[i])
+
+    spectrum = spectrum/max(spectrum) #Normalizes for Lorentzian standardized (max value of 1)
+    plt.plot(lspace, spectrum)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -272,3 +314,5 @@ if __name__ == "__main__":
     plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
                                                   static_bvec=static_bvec)
     plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
+    plot_power_broadened_spectrum(transition_bvec=transition_bvec, static_bvec=static_bvec, tescale=1.E-6,
+                                  xlabel='Transition frequency (MHz)', tascale=1.E-3, ylabel='Norm. PL Intensity')
