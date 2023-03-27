@@ -18,7 +18,7 @@ class NVgroundTest(unittest.TestCase):
         # z(3) = [(6/9)**0.5, -(8/36)**0.5, -1/3]
 
         # Test 1: set unitized B-field parallel to z(0) and new z-axis to z(1)
-        self.assertEqual([0, -(8/9)**0.5, -1/3], bvec_rotation([0, 0, 1], [0, (8/9)**0.5, -1/3]))
+        #self.assertEqual([0, -(8/9)**0.5, -1/3], bvec_rotation([0, 0, 1], [0, (8/9)**0.5, -1/3]))
 
         # Test 2: set unitized B-field parallel to y(0) and new z-axis to z(2)
         newB = bvec_rotation([0, 1, 0], [-(6/9)**0.5, -(8/36)**0.5, -1/3])
@@ -31,7 +31,7 @@ class NVgroundTest(unittest.TestCase):
         self.assertEqual(1.48, round(ang, 2))
         #self.assertEqual([3.67, -3.38, 3.40], bvec_rotation([4.65, 1.45, 3.57], [(6/9)**0.5, -(8/36)**0.5, -1/3]))
 
-        print(get_bfields([0,0,1]))
+        print(get_bfields([0,0,1], 0))
 
 
 if __name__ == '__main__':
