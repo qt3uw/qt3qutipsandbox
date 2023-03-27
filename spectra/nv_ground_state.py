@@ -36,22 +36,29 @@ def twonplus1(n):
     return 2 * n + 1
 
 
-def rodrigues(bvec, k):
+def rotate_about_z(vec, phi):
+    vec = [vec[0]*np.cos(phi) - vec[1]*np.sin(phi), vec[0]*np.sin(phi) + vec[1]*np.cos(phi), vec[2]]
+    return vec
+
+
+def rodrigues(vec, k, theta):
     """
-    The Rodrigues rotation calculation for a given vector bvec about unit vector k
-    :param bvec: vector to be rotated
+    The Rodrigues rotation calculation for a given vector bvec about unit vector k by angle theta.
+    :param vec: vector to be rotated
     :param k: axis of rotation
+    :param theta: rotation angle
     :return: rotated vector
     """
-    crossp = [k[1]*bvec[2], -k[0]*bvec[2], k[0]*bvec[1] - k[1]*bvec[0]]
-    dotp = k[0]*bvec[0] + k[1]*bvec[1]
-    fin = -np.array(bvec)/3 + np.array(crossp)*(8/9)**0.5 + np.array(k)*(4*dotp/3)
+    crossp = [k[1]*vec[2], -k[0]*vec[2], k[0]*vec[1] - k[1]*vec[0]]
+    dotp = k[0]*vec[0] + k[1]*vec[1] + k[2]*vec[2]
+    fin = np.array(vec)*np.cos(theta) + np.array(crossp)*np.sin(theta) + np.array(k)*dotp*(1-np.cos(theta))
 
     return [fin[0], fin[1], fin[2]]
 
+
 def bvec_rotation(bvec, nvvec):
     """
-    Rotates a magnetic field vector such that a new NV-configuration is considered the 'default.'
+    Rotates a magnetic field vector such that a given NV-axis is aligned along (0,0,1).
     Acts to rotate the coordinate system.
     :param bvec: magnetic field vector in Cartesian
     :param nnvec: new NV-configuration vector in Cartesian
@@ -59,26 +66,32 @@ def bvec_rotation(bvec, nvvec):
     """
     k1 = nvvec[1]/(nvvec[0]**2 + nvvec[1]**2)**0.5
     k2 = -nvvec[0]/(nvvec[0]**2 + nvvec[1]**2)**0.5
+    ang = np.arccos(nvvec[2]/(np.linalg.norm(nvvec))) # rotation angle
 
-    return rodrigues(bvec, [k1, k2, 0]) # rotation about unit vector k
+    return rodrigues(bvec, [k1, k2, 0], ang) # rotation about unit vector k
 
-def get_bfields(bvec):
+
+def get_bfields(bvec, phi):
     """
-    Gives magnetic field vectors for all N configurations
-    :param bvec: magnetic field w.r.t. z-axis aligned NV-axis
-    :return: an array of magnetic field vectors
+    Gives magnetic field vectors for all NV configurations. Standard NV-axis configuration is given by [111], [1-1-1],
+    [-11-1], and [-1-11], but this axes set can be rotated about the z-axis by provided angle phi.
+    :param bvec: magnetic field in Cartesian
+    :param phi: azimuthal orientation of NV system (Cartesian)
+    :return: an array of magnetic field vectors w.r.t. all four NV-axis oriented coordinate systems.
     """
-    b1 = bvec_rotation(bvec, [0, (8/9)**0.5, -1/3])
-    b2 = bvec_rotation(bvec, [-(6/9)**0.5, -(8/36)**0.5, -1/3])
-    b3 = bvec_rotation(bvec, [(6/9)**0.5, -(8/36)**0.5, -1/3])
+    b1 = bvec_rotation(bvec, rotate_about_z([1,1,1], phi))
+    b2 = bvec_rotation(bvec, rotate_about_z([1,-1,-1], phi))
+    b3 = bvec_rotation(bvec, rotate_about_z([-1,1,-1], phi))
+    b4 = bvec_rotation(bvec, rotate_about_z([-1,-1,1], phi))
 
-    return [bvec, b1, b2, b3]
+    return [b1, b2, b3, b4]
 
 
 def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
     """
     Gets ground state hamiltonian in frequency units (h=1) with representation ordering S, I
     From Doherty et a., Physics Reports 528 (2013)
+    Nitrogen assumed as N-14.
     :param p:
     :return:
     """
@@ -262,45 +275,66 @@ def lorentz_lineshape(lspace, transition_energy, transition_amplitude):
     :param lspace: linespace
     :param transition_energy: acts as position of maximum
     :param transition_amplitude: used to get FWHM
-    :return: Lorentzian function
+    :return: population probability according to Lorentzian line shape
     """
-    x = lspace
+    x = lspace ##unnecessary
     if transition_amplitude == 0:
-        return 0
+        return np.zeros_like(lspace)
     else:
-        x = (x - transition_energy)/(2*transition_amplitude) # Relaxation constant = transition amplitude
-        return 1/(1+np.square(x))
+        x = (x - transition_energy)/(transition_amplitude) # Relaxation constant = transition amplitude
+        line = 1/(2*(1+np.square(x)))
+        return line
 
 
-def plot_power_broadened_spectrum(transition_bvec, static_bvec, p: NVGroundParameters14N=NVGroundParameters14N(),
-                                       tescale=1., xlabel=None, tascale=1., ylabel=None, title=None,
-                                       res = 1024):
+def get_power_broadened_spectrum(transition_bvec, static_bvec, initial_state,
+                                  p: NVGroundParameters14N=NVGroundParameters14N(), yscale=1, res = 1024):
     """
-    Plots the power-broadened spectrum. Applied magnetic field and RF field amplitude are fixed.
+    Gets the power-broadened spectrum for a single NV-configuration. Applied magnetic field and RF field amplitude are
+    fixed.
     :param transition_bvec: The magnetic field given by electromagnetic wave.
     :param static_bvec: The applied magnetic field
     :param p: Parameters describing the NV center
     :param res: resolution
-    :return: returns a spectrum to be plotted.
+    :return: returns the probability of a transition occuring for a particular driving RF field.
     """
     p=NVGroundParameters14N()
     hh_int = get_magnetic_transition_operator(p, transition_bvec)
     energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
+
     transition_energies, transition_amplitudes = get_transition_amplitudes(hh_int, energies, eigenstates)
+    transition_energies = transition_energies*yscale
+    transition_amplitudes = transition_amplitudes*yscale
 
-    transition_energies = np.array(transition_energies)*tescale
-    transition_amplitudes = np.array(transition_amplitudes)*tascale
-
-    lspace = np.linspace(min(transition_energies), max(transition_energies), num = res)
+    lspace = np.linspace(2500, 4000, num = res) # Line space can be manually altered here
     spectrum = np.zeros_like(lspace)
+    # Apply lineshape
+    for i in range(9, 0, -1):
+        hold = np.zeros_like(lspace)
+        for j in range(i - 1):
+            hold += 0.5*lorentz_lineshape(lspace, transition_energies[j], transition_amplitudes[j]*2)
+            transition_energies = np.delete(transition_energies, 0)
+            transition_amplitudes = np.delete(transition_amplitudes, 0)
+        if max(hold) != 0:
+            spectrum += hold*initial_state[i - 1]/max(hold)
+            #print(max(spectrum))
 
-    for i in range(len(transition_energies)):
-        spectrum += lorentz_lineshape(lspace, transition_energies[i], transition_amplitudes[i])
+    return lspace, spectrum
 
-    spectrum = spectrum/max(spectrum) #Normalizes for Lorentzian standardized (max value of 1)
-    plt.plot(lspace, spectrum)
+
+def plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state,
+                                  p: NVGroundParameters14N=NVGroundParameters14N(), xlabel='Transition frequency (MHz)',
+                                  ylabel='Percentage of transitioning population', title=None, res = 1024):
+    bvecs = get_bfields(static_bvec, 0) # Phi changed manually-- set here to 0
+
+    lspace, spectrum = get_power_broadened_spectrum(transition_bvec, bvecs[0], initial_state, yscale=1.E-6)
+    for i in range(1, 4):
+        spectrum += get_power_broadened_spectrum(transition_bvec, bvecs[i], initial_state, yscale=1.E-6)[1]
+    spectrum = spectrum/4
+
+    fig = plt.plot(lspace, spectrum)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    plt.title(title)
     plt.show()
 
 
@@ -312,9 +346,32 @@ if __name__ == "__main__":
     theta = 0.
     static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)])
     transition_bvec = np.array([0., 1.E-4, 0.E-4])
+    initial_state = [0, 0, 0.6, 0, 0, 0, 0.4, 0, 0]
 
-    plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
-                                                  static_bvec=static_bvec)
-    plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
-    plot_power_broadened_spectrum(transition_bvec=transition_bvec, static_bvec=static_bvec, tescale=1.E-6,
-                                  xlabel='Transition frequency (MHz)', tascale=1.E-3, ylabel='Norm. PL Intensity')
+    #plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
+    #                                              static_bvec=static_bvec)
+    #plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
+
+
+    #lspace, spectrum = get_power_broadened_spectrum(transition_bvec=transition_bvec, static_bvec=static_bvec,
+    #                                                initial_state=initial_state, tescale=1.E-6, tascale=1.E-3)
+    #plt.plot(lspace, spectrum)
+    #plt.show()
+    #plot_nv_config_averaging_power_broad(transition_bvec=transition_bvec, static_bvec=static_bvec,
+    #                                     initial_state=initial_state)
+    freq = np.linspace(0, 10, 1024)
+    testline = lorentz_lineshape(freq, 5, 2)
+    plt.plot(freq, testline, label = "FWHM = 1")
+
+    testline = lorentz_lineshape(freq, 5, 1)
+    plt.plot(freq, testline, label = "FWHM = 1/2")
+
+
+    testline = lorentz_lineshape(freq, 5, 3)
+    plt.plot(freq, testline, label = "FWHM = 3/2")
+    #plt.xlabel("transition energy MHz")
+    #plt.ylabel("population transition probability")
+    plt.legend()
+    plt.show()
+
+
