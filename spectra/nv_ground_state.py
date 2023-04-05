@@ -157,22 +157,27 @@ def get_eigenstate_amplitude_hovertext(eigenstate: Qobj, eigenstate_labels: List
     return res
 
 
-def get_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj]):
+def get_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
+                              initial_populations: np.ndarray=None):
     """
     Given a transition operator, set of energies and energy eigenstates computes the transition energies and amplitudes
     :param transition_operator: Operator of the transition matrix written in the energy eigenbasis.
     :param energies: Energies
     :param eigenstates: Energy eigenstates corresponding to energies
+    :param initial_populations: Initial populations in eigenenergy ordering from ground state
     :return: transition energies, transition amplitudes
     """
     transition_energies = []
     transition_amplitudes = []
+    if initial_populations is None:
+        initial_populations = np.ones(len(energies))
+    initial_populations = initial_populations / np.sum(initial_populations)
     for i, psi_i in enumerate(eigenstates):
         for j, psi_j in enumerate(eigenstates):
             transition_energy = energies[j] - energies[i]
             if transition_energy > 0:
                 transition_energies.append(transition_energy)
-                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)))
+                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)) * initial_populations[i])
     transition_energies = np.array(transition_energies)
     transition_amplitudes = np.array(transition_amplitudes)
     return transition_energies, transition_amplitudes
@@ -197,14 +202,24 @@ def get_magnetic_transition_operator(p:NVGroundParameters14N, transition_bvec) -
 
 
 def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[float], eigenstates: Sequence[Qobj],
-                               fig=None, xscale=1., xlabel=None, yscale=1., ylabel='rabi frequency (Hz)', title=None):
+                               initial_populations: np.ndarray = None, fig=None, xscale=1., xlabel=None, yscale=1.,
+                               ylabel='rabi frequency (Hz)', title=None):
     """
-    Plots of all of the transition amplitudes
-    :param transition_operator:
-    :param energies:
-    :param eigenstates:
-    :param fig:
-    :return:
+    Plots transition amplitudes weighted by initial populations
+    Args:
+        transition_operator: Interaction hamiltonian for the transition
+        energies: Eigenenergies of the system
+        eigenstates: Eigenstates of the system
+        initial_populations: Initial populations corresponding to eigenenergies, will normalize in place
+        fig: matplotlib figure object to plot on (optional)
+        xscale: proportional scaling for x-axis
+        xlabel: label for x-axis
+        yscale: proportional scaling for y-axis
+        ylabel: label for y-axis
+        title: plot title
+
+    Returns:
+
     """
     hovertip_text = []
 
@@ -213,7 +228,8 @@ def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[flo
             if (energies[j] - energies[i]) > 0:
                 hovertip_text.append(f'|{i}> --> |{j}>')
 
-    transition_energies, transition_amplitudes = get_transition_amplitudes(transition_operator, energies, eigenstates)
+    transition_energies, transition_amplitudes = get_transition_amplitudes(transition_operator, energies, eigenstates,
+                                                                           initial_populations=initial_populations)
 
     if fig is None:
         fig = go.Figure()
@@ -271,7 +287,7 @@ def plot_nv_ground_eigenspectrum(p: NVGroundParameters14N, bvector=np.zeros(3)):
     fig.show()
 
 
-def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
+def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec, initial_populations: np.ndarray=None,
                                                   p: NVGroundParameters14N=NVGroundParameters14N()):
     """
     NV axis is in the (0, 0, 1) direction
@@ -286,7 +302,8 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
     hh_int = get_magnetic_transition_operator(p, transition_bvec)
     energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
     fig = plot_transition_amplitudes(hh_int, energies, eigenstates, xscale=1.E-6, xlabel='transition frequency (MHz)',
-                                     yscale=1.E-3, ylabel='rabi frequency (kHz)')
+                                     yscale=1.E-3, ylabel='population-weighted rabi frequency (kHz)',
+                                     initial_populations=initial_populations)
     fig.update_layout(title=dict(text=f'B = ({static_bvec[0] * 1.E4:.2f} G, {static_bvec[1] * 1.E4:.2f} G, '
                                       f'{static_bvec[2] * 1.E4:.2f} G)<br>'
                                       f'B_drive = ({transition_bvec[0] * 1.E4:.2f} G, '
@@ -295,68 +312,71 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
     fig.show()
     return fig
 
-def lorentz_lineshape(lspace, transition_energy, transition_amplitude):
+def lorentz_lineshape(frequencies, transition_frequency, transition_amplitude):
     """
     Gives a Lorentzian line shape for a spectrum where spontaneous relaxation processes are negligible.
-    :param lspace: linespace
-    :param transition_energy: acts as position of maximum
+    :param frequencies: frequencies, domain over which to calculate the lineshape
+    :param transition_frequency: center of lorentzian peak
     :param transition_amplitude: used to get FWHM
     :return: population probability according to Lorentzian line shape
     """
-    t = 0.6 # Manual input, seconds, time wait per pulse
     if transition_amplitude == 0:
-        return np.zeros_like(lspace)
+        return np.zeros_like(frequencies)
     else:
-        x = (lspace - transition_energy)/(transition_amplitude) # Relaxation constant = transition amplitude
-        line = 1/(1+np.square(x)) # Lorentzian line shape
-        return line*transition_amplitude#np.sin(0.5*np.sqrt((lspace - transition_energy)**2 + transition_amplitude**2)*t*1.E6)**2
+        x = (frequencies - transition_frequency) / (transition_amplitude)
+        line = 1 / (1 + np.square(x))
+        return line * transition_amplitude
 
 
-def get_power_broadened_spectrum(frequencies, transition_bvec, static_bvec, initial_state,
+def get_power_broadened_spectrum(frequencies, transition_bvec, static_bvec, initial_populations,
                                   p: NVGroundParameters14N=NVGroundParameters14N()):
     """
     Gets the power-broadened spectrum for a single NV-configuration. Applied magnetic field and RF field amplitude are
     fixed.
-    :param frequencies: Array of frequencies to calculate spectrum over
-    :param transition_bvec: The magnetic field given by electromagnetic wave.
-    :param static_bvec: The applied magnetic field
+    :param frequencies: Array of frequencies over which to calculate spectrum
+    :param transition_bvec: The magnetic field vector for the magnetic transition (RF field)
+    :param static_bvec: The static bias field that determines the eigenstates
+    :initial_populations: Array of initial populations in eigen-energy order from ground state to highest energy
     :param p: Parameters describing the NV center
-    :param res: resolution
     :return: returns the probability of a transition occuring for a particular driving RF field.
     """
-    p=NVGroundParameters14N()
     hh_int = get_magnetic_transition_operator(p, transition_bvec)
     energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
 
-    transition_energies, transition_amplitudes = get_transition_amplitudes(hh_int, energies, eigenstates)
-    transition_energies = transition_energies
-    transition_amplitudes = transition_amplitudes
+    transition_energies, transition_amplitudes = get_transition_amplitudes(hh_int, energies, eigenstates,
+                                                                           initial_populations=initial_populations)
 
     spectrum = np.zeros_like(frequencies)
-
     for i, amp in enumerate(transition_amplitudes):
         spectrum += lorentz_lineshape(frequencies, transition_energies[i], amp)
 
-    # # Apply lineshape
-    # for i in range(9, 0, -1):
-    #     spectrum = np.zeros_like(frequencies)
-    #     for j in range(i - 1):
-    #         spectrum += lorentz_lineshape(frequencies, transition_energies[j], transition_amplitudes[j])
-    #         transition_energies = np.delete(transition_energies, 0)
-    #         transition_amplitudes = np.delete(transition_amplitudes, 0)
-    #     if np.max(spectrum) != 0:
-    #         spectrum += spectrum * initial_state[9 - i]
+    return spectrum
 
-    return frequencies, spectrum
+def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state,
+                                  p: NVGroundParameters14N=NVGroundParameters14N(),
+                                                 nv_axes=((1,1,1), (-1,-1,1), (1,-1,-1), (-1,1,-1))):
+    """
+    Gets the spectral average over all possible NV axis directions (legs of tetrahedron)
+    Args:
+        frequencies:
+        transition_bvec:
+        static_bvec:
+        initial_state:
+        p:
+
+    Returns:
+
+    """
+    raise(NotImplementedError)
 
 
 def plot_nv_config_averaging_power_broad(frequencies, transition_bvec, static_bvec, initial_state,
                                   p: NVGroundParameters14N=NVGroundParameters14N(), xlabel='Transition frequency (MHz)',
                                   ylabel='Percentage of transitioning population', title=None, res = 1024):
-    bvecs = get_bfields(static_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1]) # Phi changed manually-- set here to 0
+    bvecs = get_bfields(static_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1])
     transition_bvecs = get_bfields(transition_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1])
 
-    lspace, spectrum = get_power_broadened_spectrum(np.array(transition_bvecs[0]), bvecs[0], initial_state, yscale=1.E-6)
+    spectrum = get_power_broadened_spectrum(frequencies, np.array(transition_bvecs[0]), bvecs[0], initial_state, yscale=1.E-6)
     for i, bvec in enumerate(bvecs):
         spectrum += get_power_broadened_spectrum(np.array(transition_bvecs[i]), bvec, initial_state, yscale=1.E-6)[1]
     spectrum = spectrum/len(bvecs)
@@ -369,7 +389,6 @@ def plot_nv_config_averaging_power_broad(frequencies, transition_bvec, static_bv
 
 
 if __name__ == "__main__":
-    
     static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
     transition_bvec = np.array([0., 0., 0.000034])
     initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
@@ -382,6 +401,4 @@ if __name__ == "__main__":
     plt.ylabel("Signal Strength Normalized")
     plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
     plt.show()
-
-
 
