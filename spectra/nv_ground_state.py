@@ -312,11 +312,12 @@ def lorentz_lineshape(lspace, transition_energy, transition_amplitude):
         return line*transition_amplitude#np.sin(0.5*np.sqrt((lspace - transition_energy)**2 + transition_amplitude**2)*t*1.E6)**2
 
 
-def get_power_broadened_spectrum(transition_bvec, static_bvec, initial_state,
-                                  p: NVGroundParameters14N=NVGroundParameters14N(), yscale=1, res = 1024):
+def get_power_broadened_spectrum(frequencies, transition_bvec, static_bvec, initial_state,
+                                  p: NVGroundParameters14N=NVGroundParameters14N()):
     """
     Gets the power-broadened spectrum for a single NV-configuration. Applied magnetic field and RF field amplitude are
     fixed.
+    :param frequencies: Array of frequencies to calculate spectrum over
     :param transition_bvec: The magnetic field given by electromagnetic wave.
     :param static_bvec: The applied magnetic field
     :param p: Parameters describing the NV center
@@ -328,33 +329,37 @@ def get_power_broadened_spectrum(transition_bvec, static_bvec, initial_state,
     energies, eigenstates = get_nv_ground_eigenspectrum(p, static_bvec)
 
     transition_energies, transition_amplitudes = get_transition_amplitudes(hh_int, energies, eigenstates)
-    transition_energies = transition_energies*yscale
-    transition_amplitudes = transition_amplitudes*yscale
+    transition_energies = transition_energies
+    transition_amplitudes = transition_amplitudes
 
-    lspace = np.linspace(2720, 3020, num = res*10) # Line space can be manually altered here
-    spectrum = np.zeros_like(lspace)
-    # Apply lineshape
-    for i in range(9, 0, -1):
-        hold = np.zeros_like(lspace)
-        for j in range(i - 1):
-            hold += lorentz_lineshape(lspace, transition_energies[j], transition_amplitudes[j])
-            transition_energies = np.delete(transition_energies, 0)
-            transition_amplitudes = np.delete(transition_amplitudes, 0)
-        if max(hold) != 0:
-            spectrum += hold*initial_state[9 - i]
-    return lspace, spectrum
+    spectrum = np.zeros_like(frequencies)
+
+    for i, amp in enumerate(transition_amplitudes):
+        spectrum += lorentz_lineshape(frequencies, transition_energies[i], amp)
+
+    # # Apply lineshape
+    # for i in range(9, 0, -1):
+    #     spectrum = np.zeros_like(frequencies)
+    #     for j in range(i - 1):
+    #         spectrum += lorentz_lineshape(frequencies, transition_energies[j], transition_amplitudes[j])
+    #         transition_energies = np.delete(transition_energies, 0)
+    #         transition_amplitudes = np.delete(transition_amplitudes, 0)
+    #     if np.max(spectrum) != 0:
+    #         spectrum += spectrum * initial_state[9 - i]
+
+    return frequencies, spectrum
 
 
-def plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state,
+def plot_nv_config_averaging_power_broad(frequencies, transition_bvec, static_bvec, initial_state,
                                   p: NVGroundParameters14N=NVGroundParameters14N(), xlabel='Transition frequency (MHz)',
                                   ylabel='Percentage of transitioning population', title=None, res = 1024):
     bvecs = get_bfields(static_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1]) # Phi changed manually-- set here to 0
     transition_bvecs = get_bfields(transition_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1])
 
     lspace, spectrum = get_power_broadened_spectrum(np.array(transition_bvecs[0]), bvecs[0], initial_state, yscale=1.E-6)
-    for i in range(1, 4):
-        spectrum += get_power_broadened_spectrum(np.array(transition_bvecs[i]), bvecs[i], initial_state, yscale=1.E-6)[1]
-    spectrum = spectrum/4
+    for i, bvec in enumerate(bvecs):
+        spectrum += get_power_broadened_spectrum(np.array(transition_bvecs[i]), bvec, initial_state, yscale=1.E-6)[1]
+    spectrum = spectrum/len(bvecs)
 
     fig = plt.plot(lspace, spectrum)
     plt.xlabel(xlabel)
@@ -387,11 +392,16 @@ if __name__ == "__main__":
 
 
     bo = 0.0013
-    static_bvec = bo * np.array([0.67, 0.74, 0.02])
-    transition_bvec = [0., 0., 0.000000034]
+    #static_bvec = bo * np.array([0.67, 0.74, 0.02])
+    static_bvec = bo * np.array([0, 0, 200.E-4])
+    transition_bvec = [0., 0., 1.E-4]
     initial_state = [1/3., 1/3., 1/3., 0, 0, 0, 0, 0, 0]
-    plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state)
+    plot_nv_ground_magnetic_transition_amplitudes(static_bvec, transition_bvec)
+    frequencies = np.linspace(0., 3.E9, num=2048)
+    get_power_broadened_spectrum(frequencies=frequencies)
+    # plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state)
     p = NVGroundParameters14N()
+
 
     # static_bvec = 0.0005*np.array([1, 1, 1])
     # transition_bvec = [0., 0., 0.000034]
