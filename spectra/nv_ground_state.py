@@ -353,16 +353,16 @@ def plot_nv_config_averaging_power_broad(frequencies, transition_bvec, static_bv
 
 
 if __name__ == "__main__":
+
     static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
     transition_bvec = np.array([0., 0., 0.000034])
     initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
-    frequencies = np.linspace(2.8E9, 2.95E9, num=2 ** 16)
+    frequencies = np.linspace(2.8E9, 2.95E9, num=2**16)
 
     spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
-    spectrum = spectrum / max(spectrum)
+    spectrum = spectrum/max(spectrum)
     fig = plt.plot(frequencies, spectrum)
     plt.xlabel("Applied Wave Frequency (Hz)")
     plt.ylabel("Signal Strength Normalized")
     plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
     plt.show()
-
