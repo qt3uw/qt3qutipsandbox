@@ -31,6 +31,17 @@ class NVgroundTest(unittest.TestCase):
         self.assertEqual(1.48, round(ang, 2))
         #self.assertEqual([3.67, -3.38, 3.40], bvec_rotation([4.65, 1.45, 3.57], [(6/9)**0.5, -(8/36)**0.5, -1/3]))
 
+        bvec1 = [1,1,0]
+        bvec2 = [0, 0, 1]
+        angin = np.pi/2
+
+        b1 = bvec_rotation(bvec1, [1,1,1])
+        b2 = bvec_rotation(bvec2, [1,1,1])
+        ang = np.arccos(b1[2] / np.linalg.norm(b1))
+        self.assertEqual(0.62, round(ang, 2))
+        angf = np.arccos((b1[0]*b2[0] + b1[1]*b2[1] + b1[2]*b2[2])/(np.linalg.norm(b1)*np.linalg.norm(b2)))
+        self.assertEqual(angin, angf)
+
         print(get_bfields([0,0,1], 0))
 
 

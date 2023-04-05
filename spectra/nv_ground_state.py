@@ -20,12 +20,13 @@ uN = physical_constants['nuclear magneton'][0]
 class NVGroundParameters14N:
     nuclear_spin: int = 1
     electron_spin: int = 1
-    f_fine_structure: float = 2.88E9
+    f_fine_structure: float = 2.87E9
     f_nuclear_quadrupole: float = -5.01E6
-    f_axial_magnetic_hyperfine: float = -2.14E6
-    f_transverse_magnetic_hyperfine: float = -2.7E6
+    f_axial_magnetic_hyperfine: float = -2.14E6 #FIXME negative sign?
+    f_transverse_magnetic_hyperfine: float = -2.7E6 #FIXME negative sign?
     g_factor_electron: float = 2.0028
     gyromagnetic_constant_nuclear: float = 1.93297E7 / (2 * np.pi) # Hz / Tesla
+    # FIXME check constants
 
 
 def nnplus1(n):
@@ -70,8 +71,26 @@ def bvec_rotation(bvec, nvvec):
 
     return rodrigues(bvec, [k1, k2, 0], ang) # rotation about unit vector k
 
+def rotate_frame(bvec, nv1, nv2):
+    z = nv1
+    y = np.cross(nv1, nv2)
+    x = np.cross(y, z)
 
-def get_bfields(bvec, phi):
+    x = np.array(x)/np.linalg.norm(x)
+    y = np.array(y)/np.linalg.norm(y)
+    z = np.array(z)/np.linalg.norm(z)
+
+    hold = np.array([x, y, z])
+    hold2 = np.linalg.inv(hold)
+
+    rot_matrix = np.dot(hold, np.array(bvec))
+
+
+
+    return rot_matrix
+
+
+def get_bfields(bvec, nv1, nv2, nv3, nv4):
     """
     Gives magnetic field vectors for all NV configurations. Standard NV-axis configuration is given by [111], [1-1-1],
     [-11-1], and [-1-11], but this axes set can be rotated about the z-axis by provided angle phi.
@@ -79,21 +98,21 @@ def get_bfields(bvec, phi):
     :param phi: azimuthal orientation of NV system (Cartesian)
     :return: an array of magnetic field vectors w.r.t. all four NV-axis oriented coordinate systems.
     """
-    b1 = bvec_rotation(bvec, rotate_about_z([1,1,1], phi))
-    b2 = bvec_rotation(bvec, rotate_about_z([1,-1,-1], phi))
-    b3 = bvec_rotation(bvec, rotate_about_z([-1,1,-1], phi))
-    b4 = bvec_rotation(bvec, rotate_about_z([-1,-1,1], phi))
+    b1 = rotate_frame(bvec, nv1, nv2)
+    b2 = rotate_frame(bvec, nv2, nv1)
+    b3 = rotate_frame(bvec, nv3, nv4)
+    b4 = rotate_frame(bvec, nv4, nv3)
 
     return [b1, b2, b3, b4]
 
 
 def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
     """
-    Gets ground state hamiltonian in frequency units (h=1) with representation ordering S, I
-    From Doherty et a., Physics Reports 528 (2013)
+    Gets ground state hamiltonian in frequency units (h=1) with representation ordering S, I.
+    From Doherty et a., Physics Reports 528 (2013).
     Nitrogen assumed as N-14.
-    :param p:
-    :return:
+    :param p: Ground state NV center parameters
+    :return: Hamiltonian for interaction between electronic and nuclear spin
     """
     hh = p.f_fine_structure * tensor(jmat(p.electron_spin, 'z') ** 2 - (nnplus1(p.electron_spin) / 3) *
                                                                         identity(twonplus1(p.electron_spin)),
@@ -108,6 +127,12 @@ def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
 
 
 def get_nv_zeeman_hamiltonian(p:NVGroundParameters14N, bvector):
+    """
+    Zeeman Hamiltonian for both electronic and nuclear spin.
+    :param p: Ground state NV center parameters
+    :param bvector: Static magnetic field vector
+    :return: The Zeeman Hamiltonian for a static magnetic field
+    """
     h_zeeman = uB / h * p.g_factor_electron * tensor(jmat(p.electron_spin, 'x') * bvector[0] +
                                             jmat(p.electron_spin, 'y') * bvector[1] +
                                             jmat(p.electron_spin, 'z') * bvector[2], identity(twonplus1(p.nuclear_spin))) + \
@@ -166,7 +191,7 @@ def get_magnetic_transition_operator(p:NVGroundParameters14N, transition_bvec) -
     nuclear_moment = p.gyromagnetic_constant_nuclear * transition_bvec
     hh_int = tensor((electron_moment[0] * jjs[0] + electron_moment[1] * jjs[1] + electron_moment[2] * jjs[2]),
                     identity(twonplus1(p.electron_spin))) + \
-             tensor(identity(twonplus1(p.electron_spin)),
+             tensor(identity(twonplus1(p.nuclear_spin)),
                     (nuclear_moment[0] * iis[0] + nuclear_moment[1] * iis[1] + nuclear_moment[2] * iis[2]))
     return hh_int
 
@@ -250,7 +275,8 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
                                                   p: NVGroundParameters14N=NVGroundParameters14N()):
     """
     NV axis is in the (0, 0, 1) direction
-    This has been checked against https://doi.org/10.1038/s41598-020-61669-w for the case where NV-axis is aligned to field.
+    This has been checked against https://doi.org/10.1038/s41598-020-61669-w for the case where NV-axis is aligned to
+    field.
     :param transition_bvec: RF field vector in Tesla
     :param static_bvec: Bias field vector in Tesla
     :param p: Parameters
@@ -271,19 +297,19 @@ def plot_nv_ground_magnetic_transition_amplitudes(transition_bvec, static_bvec,
 
 def lorentz_lineshape(lspace, transition_energy, transition_amplitude):
     """
-    Gives a Lorentzian lineshape for a spectrum where spontaneous relaxation processes are negligible.
+    Gives a Lorentzian line shape for a spectrum where spontaneous relaxation processes are negligible.
     :param lspace: linespace
     :param transition_energy: acts as position of maximum
     :param transition_amplitude: used to get FWHM
     :return: population probability according to Lorentzian line shape
     """
-    x = lspace ##unnecessary
+    t = 0.6 # Manual input, seconds, time wait per pulse
     if transition_amplitude == 0:
         return np.zeros_like(lspace)
     else:
-        x = (x - transition_energy)/(transition_amplitude) # Relaxation constant = transition amplitude
-        line = 1/(2*(1+np.square(x)))
-        return line
+        x = (lspace - transition_energy)/(transition_amplitude) # Relaxation constant = transition amplitude
+        line = 1/(1+np.square(x)) # Lorentzian line shape
+        return line*transition_amplitude#np.sin(0.5*np.sqrt((lspace - transition_energy)**2 + transition_amplitude**2)*t*1.E6)**2
 
 
 def get_power_broadened_spectrum(transition_bvec, static_bvec, initial_state,
@@ -305,30 +331,29 @@ def get_power_broadened_spectrum(transition_bvec, static_bvec, initial_state,
     transition_energies = transition_energies*yscale
     transition_amplitudes = transition_amplitudes*yscale
 
-    lspace = np.linspace(2500, 4000, num = res) # Line space can be manually altered here
+    lspace = np.linspace(2720, 3020, num = res*10) # Line space can be manually altered here
     spectrum = np.zeros_like(lspace)
     # Apply lineshape
     for i in range(9, 0, -1):
         hold = np.zeros_like(lspace)
         for j in range(i - 1):
-            hold += 0.5*lorentz_lineshape(lspace, transition_energies[j], transition_amplitudes[j]*2)
+            hold += lorentz_lineshape(lspace, transition_energies[j], transition_amplitudes[j])
             transition_energies = np.delete(transition_energies, 0)
             transition_amplitudes = np.delete(transition_amplitudes, 0)
         if max(hold) != 0:
-            spectrum += hold*initial_state[i - 1]/max(hold)
-            #print(max(spectrum))
-
+            spectrum += hold*initial_state[9 - i]
     return lspace, spectrum
 
 
 def plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state,
                                   p: NVGroundParameters14N=NVGroundParameters14N(), xlabel='Transition frequency (MHz)',
                                   ylabel='Percentage of transitioning population', title=None, res = 1024):
-    bvecs = get_bfields(static_bvec, 0) # Phi changed manually-- set here to 0
+    bvecs = get_bfields(static_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1]) # Phi changed manually-- set here to 0
+    transition_bvecs = get_bfields(transition_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1])
 
-    lspace, spectrum = get_power_broadened_spectrum(transition_bvec, bvecs[0], initial_state, yscale=1.E-6)
+    lspace, spectrum = get_power_broadened_spectrum(np.array(transition_bvecs[0]), bvecs[0], initial_state, yscale=1.E-6)
     for i in range(1, 4):
-        spectrum += get_power_broadened_spectrum(transition_bvec, bvecs[i], initial_state, yscale=1.E-6)[1]
+        spectrum += get_power_broadened_spectrum(np.array(transition_bvecs[i]), bvecs[i], initial_state, yscale=1.E-6)[1]
     spectrum = spectrum/4
 
     fig = plt.plot(lspace, spectrum)
@@ -339,37 +364,43 @@ def plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_s
 
 
 if __name__ == "__main__":
-    bmag = 4.6E-3
-    phi = 0. * np.pi / 180. # Polar angle
-    theta = 0.
-    static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)])
-    transition_bvec = np.array([0., 1.E-4, 0.E-4])
-    initial_state = [0, 0, 0.6, 0, 0, 0, 0.4, 0, 0]
 
-    #plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
+    # bmag = 4.6E-3
+    # phi = 45. * np.pi / 180. # Polar angle
+    # theta = 0.
+    # static_bvec = bmag * np.array([np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)])
+    # transition_bvec = np.array([0., 1.E-4, 0.E-4])
+    # initial_state = [0, 0, 0.6, 0, 0, 0, 0.4, 0, 0]
+    #
+    # plot_nv_ground_magnetic_transition_amplitudes(transition_bvec=transition_bvec,
     #                                              static_bvec=static_bvec)
-    #plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
+    # plot_nv_ground_eigenspectrum(NVGroundParameters14N(), bvector=static_bvec)
 
 
     #lspace, spectrum = get_power_broadened_spectrum(transition_bvec=transition_bvec, static_bvec=static_bvec,
     #                                                initial_state=initial_state, tescale=1.E-6, tascale=1.E-3)
     #plt.plot(lspace, spectrum)
     #plt.show()
+
     #plot_nv_config_averaging_power_broad(transition_bvec=transition_bvec, static_bvec=static_bvec,
     #                                     initial_state=initial_state)
-    freq = np.linspace(0, 10, 1024)
-    testline = lorentz_lineshape(freq, 5, 2)
-    plt.plot(freq, testline, label = "FWHM = 1")
-
-    testline = lorentz_lineshape(freq, 5, 1)
-    plt.plot(freq, testline, label = "FWHM = 1/2")
 
 
-    testline = lorentz_lineshape(freq, 5, 3)
-    plt.plot(freq, testline, label = "FWHM = 3/2")
-    #plt.xlabel("transition energy MHz")
-    #plt.ylabel("population transition probability")
-    plt.legend()
-    plt.show()
+    bo = 0.0013
+    static_bvec = bo * np.array([0.67, 0.74, 0.02])
+    transition_bvec = [0., 0., 0.000000034]
+    initial_state = [1/3., 1/3., 1/3., 0, 0, 0, 0, 0, 0]
+    plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state)
+    p = NVGroundParameters14N()
+
+    # static_bvec = 0.0005*np.array([1, 1, 1])
+    # transition_bvec = [0., 0., 0.000034]
+    # initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
+    # plot_nv_config_averaging_power_broad(transition_bvec, static_bvec, initial_state)
+    #
+
+    # Check: does transition_bvec also need to be rotated
+    # Possible issue: incorrectly applied perturbation theory
+
 
 
