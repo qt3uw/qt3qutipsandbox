@@ -37,41 +37,14 @@ def twonplus1(n):
     return 2 * n + 1
 
 
-def rotate_about_z(vec, phi):
-    vec = [vec[0]*np.cos(phi) - vec[1]*np.sin(phi), vec[0]*np.sin(phi) + vec[1]*np.cos(phi), vec[2]]
-    return vec
-
-
-def rodrigues(vec, k, theta):
-    """
-    The Rodrigues rotation calculation for a given vector bvec about unit vector k by angle theta.
-    :param vec: vector to be rotated
-    :param k: axis of rotation
-    :param theta: rotation angle
-    :return: rotated vector
-    """
-    crossp = [k[1]*vec[2], -k[0]*vec[2], k[0]*vec[1] - k[1]*vec[0]]
-    dotp = k[0]*vec[0] + k[1]*vec[1] + k[2]*vec[2]
-    fin = np.array(vec)*np.cos(theta) + np.array(crossp)*np.sin(theta) + np.array(k)*dotp*(1-np.cos(theta))
-
-    return [fin[0], fin[1], fin[2]]
-
-
-def bvec_rotation(bvec, nvvec):
-    """
-    Rotates a magnetic field vector such that a given NV-axis is aligned along (0,0,1).
-    Acts to rotate the coordinate system.
-    :param bvec: magnetic field vector in Cartesian
-    :param nnvec: new NV-configuration vector in Cartesian
-    :return: rotated magnetic field vector
-    """
-    k1 = nvvec[1]/(nvvec[0]**2 + nvvec[1]**2)**0.5
-    k2 = -nvvec[0]/(nvvec[0]**2 + nvvec[1]**2)**0.5
-    ang = np.arccos(nvvec[2]/(np.linalg.norm(nvvec))) # rotation angle
-
-    return rodrigues(bvec, [k1, k2, 0], ang) # rotation about unit vector k
-
 def rotate_frame(bvec, nv1, nv2):
+    """
+    Expresses a lab-frame vector in the nv1 axis system (nv1 is the z-axis)
+    :param bvec: vector
+    :param nv1: NV orientation
+    :param nv2: NV conjugate
+    :return: vector in nv1 axis system
+    """
     z = nv1
     y = np.cross(nv1, nv2)
     x = np.cross(y, z)
@@ -80,28 +53,21 @@ def rotate_frame(bvec, nv1, nv2):
     y = np.array(y)/np.linalg.norm(y)
     z = np.array(z)/np.linalg.norm(z)
 
-    hold = np.array([x, y, z])
-    hold2 = np.linalg.inv(hold)
-
-    rot_matrix = np.dot(hold, np.array(bvec))
-
-
-
+    rot_matrix = np.dot(np.array([x, y, z]), np.array(bvec))
     return rot_matrix
 
 
 def get_bfields(bvec, nv1, nv2, nv3, nv4):
     """
-    Gives magnetic field vectors for all NV configurations. Standard NV-axis configuration is given by [111], [1-1-1],
-    [-11-1], and [-1-11], but this axes set can be rotated about the z-axis by provided angle phi.
-    :param bvec: magnetic field in Cartesian
-    :param phi: azimuthal orientation of NV system (Cartesian)
+    Gives magnetic field vectors for all NV configurations. Standard NV-axis configuration is given by [111], [-1-11],
+    [-11-1], and [1-1-1].
+    :param bvec: magnetic field in lab frame
     :return: an array of magnetic field vectors w.r.t. all four NV-axis oriented coordinate systems.
     """
     b1 = rotate_frame(bvec, nv1, nv2)
     b2 = rotate_frame(bvec, nv2, nv1)
-    b3 = rotate_frame(bvec, nv3, nv4)
-    b4 = rotate_frame(bvec, nv4, nv3)
+    b3 = rotate_frame(bvec, nv4, nv3)
+    b4 = rotate_frame(bvec, nv3, nv4)
 
     return [b1, b2, b3, b4]
 
@@ -110,7 +76,6 @@ def get_nv_ground_hamiltonian(p:NVGroundParameters14N) -> Qobj:
     """
     Gets ground state hamiltonian in frequency units (h=1) with representation ordering S, I.
     From Doherty et a., Physics Reports 528 (2013).
-    Nitrogen assumed as N-14.
     :param p: Ground state NV center parameters
     :return: Hamiltonian for interaction between electronic and nuclear spin
     """
@@ -256,7 +221,6 @@ def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], e
     :param y_label:
     :return:
     """
-
     energies = (energies - np.min(energies)) * yscale
     color = px.colors.sequential.Plasma[0]
     if fig is None:
