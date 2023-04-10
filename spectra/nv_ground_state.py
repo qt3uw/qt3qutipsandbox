@@ -322,34 +322,23 @@ def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, s
     """
     Gets the spectral average over all possible NV axis directions (legs of tetrahedron)
     Args:
-        frequencies:
-        transition_bvec:
-        static_bvec:
-        initial_state:
-        p:
+        frequencies: line space for frequencies
+        transition_bvec: B-field at max amplitude for oscillating RF wave
+        static_bvec: static applied B-field
+        initial_state: distribution of population among ground eigenstates
+        p: NV ground parameters
 
-    Returns:
+    Returns: spectrum to be plotted
 
     """
-    raise(NotImplementedError)
+    bvecs = get_bfields(static_bvec, nv_axes[0], nv_axes[1], nv_axes[2], nv_axes[3])
+    transition_bvecs = get_bfields(transition_bvec, nv_axes[0], nv_axes[1], nv_axes[2], nv_axes[3])
 
-
-def plot_nv_config_averaging_power_broad(frequencies, transition_bvec, static_bvec, initial_state,
-                                  p: NVGroundParameters14N=NVGroundParameters14N(), xlabel='Transition frequency (MHz)',
-                                  ylabel='Percentage of transitioning population', title=None, res = 1024):
-    bvecs = get_bfields(static_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1])
-    transition_bvecs = get_bfields(transition_bvec, [1,1,1], [-1,-1,1], [1,-1,-1], [-1,1,-1])
-
-    spectrum = get_power_broadened_spectrum(frequencies, np.array(transition_bvecs[0]), bvecs[0], initial_state, yscale=1.E-6)
+    spectrum = np.zeros_like(frequencies)
     for i, bvec in enumerate(bvecs):
-        spectrum += get_power_broadened_spectrum(np.array(transition_bvecs[i]), bvec, initial_state, yscale=1.E-6)[1]
-    spectrum = spectrum/len(bvecs)
-
-    fig = plt.plot(lspace, spectrum)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.show()
+        spectrum += get_power_broadened_spectrum(frequencies, np.array(transition_bvecs[i]), bvec,
+                                                 initial_populations=initial_state)
+    return spectrum / len(bvecs)
 
 
 if __name__ == "__main__":
