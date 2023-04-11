@@ -22,11 +22,10 @@ class NVGroundParameters14N:
     electron_spin: int = 1
     f_fine_structure: float = 2.87E9
     f_nuclear_quadrupole: float = -5.01E6
-    f_axial_magnetic_hyperfine: float = -2.14E6 #FIXME negative sign?
-    f_transverse_magnetic_hyperfine: float = -2.7E6 #FIXME negative sign?
+    f_axial_magnetic_hyperfine: float = -2.14E6
+    f_transverse_magnetic_hyperfine: float = -2.7E6
     g_factor_electron: float = 2.0028
     gyromagnetic_constant_nuclear: float = 1.93297E7 / (2 * np.pi) # Hz / Tesla
-    # FIXME check constants
 
 
 def nnplus1(n):
@@ -142,7 +141,8 @@ def get_transition_amplitudes(transition_operator: Qobj, energies: Sequence[floa
             transition_energy = energies[j] - energies[i]
             if transition_energy > 0:
                 transition_energies.append(transition_energy)
-                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)) * initial_populations[i])
+                transition_amplitudes.append(np.abs(transition_operator.matrix_element(psi_j.conj(), psi_i)) *
+                                             initial_populations[i])
     transition_energies = np.array(transition_energies)
     transition_amplitudes = np.array(transition_amplitudes)
     return transition_energies, transition_amplitudes
@@ -342,14 +342,13 @@ def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, s
 
 
 if __name__ == "__main__":
-
     static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
     transition_bvec = np.array([0., 0., 0.000034])
     initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
-    frequencies = np.linspace(2.8E9, 2.95E9, num=2**16)
+    frequencies = np.linspace(2.8E9, 2.95E9, num=2 ** 16)
 
     spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
-    spectrum = spectrum/max(spectrum)
+    spectrum = spectrum / max(spectrum)
     fig = plt.plot(frequencies, spectrum)
     plt.xlabel("Applied Wave Frequency (Hz)")
     plt.ylabel("Signal Strength Normalized")
