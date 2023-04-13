@@ -1,10 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Sequence
-from mpl_toolkits.mplot3d import Axes3D
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import plotly.graph_objs as go
 import plotly.express as px
 
@@ -38,10 +36,10 @@ def twonplus1(n):
 
 def rotate_frame(bvec, nv1, nv2):
     """
-    Expresses a lab-frame vector in the nv1 axis system (nv1 is the z-axis)
+    Expresses a lab-frame vector bvec in a new reference frame where n1 becomes the z-axis.
     :param bvec: vector
     :param nv1: NV orientation
-    :param nv2: NV conjugate
+    :param nv2: NV conjugate (another NV vector sharing a plane with nv1.)
     :return: vector in nv1 axis system
     """
     z = nv1
@@ -56,7 +54,7 @@ def rotate_frame(bvec, nv1, nv2):
     return rot_matrix
 
 
-def get_bfields(bvec, nv1, nv2, nv3, nv4):
+def get_rotated_bfields(bvec, nv1 = (1,1,1), nv2 = (-1,-1,1), nv3 = (-1,1,-1), nv4 = (1,-1,-1)):
     """
     Gives magnetic field vectors for all NV configurations. Standard NV-axis configuration is given by [111], [-1-11],
     [-11-1], and [1-1-1].
@@ -171,20 +169,17 @@ def plot_transition_amplitudes(transition_operator: Qobj, energies: Sequence[flo
                                ylabel='rabi frequency (Hz)', title=None):
     """
     Plots transition amplitudes weighted by initial populations
-    Args:
-        transition_operator: Interaction hamiltonian for the transition
-        energies: Eigenenergies of the system
-        eigenstates: Eigenstates of the system
-        initial_populations: Initial populations corresponding to eigenenergies, will normalize in place
-        fig: matplotlib figure object to plot on (optional)
-        xscale: proportional scaling for x-axis
-        xlabel: label for x-axis
-        yscale: proportional scaling for y-axis
-        ylabel: label for y-axis
-        title: plot title
-
-    Returns:
-
+    :param transition_operator: Interaction hamiltonian for the transition
+    :param energies: Eigenenergies of the system
+    :param eigenstates: Eigenstates of the system
+    :param initial_populations: Initial populations corresponding to eigenenergies, will normalize in place
+    :param fig: matplotlib figure object to plot on (optional)
+    :param xscale: proportional scaling for x-axis
+    :param xlabel: label for x-axis
+    :param yscale: proportional scaling for y-axis
+    :param ylabel: label for y-axis
+    :param title: plot title
+    :return:
     """
     hovertip_text = []
 
@@ -218,7 +213,7 @@ def plot_eigenspectrum(energies: Sequence[float], eigenstates: Sequence[Qobj], e
     :param energies:
     :param eigenstates:
     :param eigenstate_labels:
-    :param y_label:
+    :param ylabel:
     :return:
     """
     energies = (energies - np.min(energies)) * yscale
@@ -317,8 +312,7 @@ def get_power_broadened_spectrum(frequencies, transition_bvec, static_bvec, init
     return spectrum
 
 def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state,
-                                  p: NVGroundParameters14N=NVGroundParameters14N(),
-                                                 nv_axes=((1,1,1), (-1,-1,1), (1,-1,-1), (-1,1,-1))):
+                                  p: NVGroundParameters14N=NVGroundParameters14N()):
     """
     Gets the spectral average over all possible NV axis directions (legs of tetrahedron)
     Args:
@@ -331,8 +325,8 @@ def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, s
     Returns: spectrum to be plotted
 
     """
-    bvecs = get_bfields(static_bvec, nv_axes[0], nv_axes[1], nv_axes[2], nv_axes[3])
-    transition_bvecs = get_bfields(transition_bvec, nv_axes[0], nv_axes[1], nv_axes[2], nv_axes[3])
+    bvecs = get_rotated_bfields(static_bvec)
+    transition_bvecs = get_rotated_bfields(transition_bvec)
 
     spectrum = np.zeros_like(frequencies)
     for i, bvec in enumerate(bvecs):
