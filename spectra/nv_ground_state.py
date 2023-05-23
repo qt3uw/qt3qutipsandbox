@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Sequence
 
+from curve_fit import annealing
+
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 import plotly.graph_objs as go
 import plotly.express as px
 
@@ -276,7 +279,7 @@ def lorentz_lineshape(frequencies, transition_frequency, transition_amplitude):
     Gives a Lorentzian line shape for a spectrum where spontaneous relaxation processes are negligible.
     :param frequencies: frequencies, domain over which to calculate the lineshape
     :param transition_frequency: center of lorentzian peak
-    :param transition_amplitude: used to get FWHM
+    :param transition_amplitude: determines FWHM
     :return: population probability according to Lorentzian line shape
     """
     if transition_amplitude == 0:
@@ -286,9 +289,48 @@ def lorentz_lineshape(frequencies, transition_frequency, transition_amplitude):
         line = 1 / (1 + np.square(x))
         return line * transition_amplitude
 
+def lorentz_lineshape_fit(frequencies, transition_freq_amp):
+    """
+    The same as lorentz_lineshape, but takes an array of transition frequecies and transition amplitudes as parameters.
+    :param transition_freq_amp: contains pairs of transition frequency and amplitude
+    :return: population probability according to Lorentzian line shape
+    """
+    spectrum = np.zeros_like(frequencies)
+    l_two = int(len(transition_freq_amp)/2)
+    for i in range(l_two):
+        x = (frequencies - transition_freq_amp[i]) / (transition_freq_amp[l_two + i])
+        line = transition_freq_amp[l_two + i] / (1 + np.square(x))
+        spectrum = spectrum + line
+    return spectrum/max(spectrum)
+
+def get_bounds(guess, val1, val2):
+    """
+    Gets bounds for use in curve-fitting. Specifically written for curve fitting with lorentz_lineshape_fit
+    :guess: the guess parameters used in curve-fitting
+    :val1: tunes the first half of the parameters (frequencies)
+    :val2: tunes the second half of the parameters (FWHM)
+    :return: bounds
+    """
+    bounds = np.zeros((len(guess),2))
+    for i in range(int(len(guess)/2)):
+        bounds[i,:] = [guess[i] - val1, guess[i] + val1]
+    for i in range(int(len(guess)/2), len(guess)):
+        bounds[i,:] = [guess[i] - val2, guess[i] + val2]
+    return bounds
+
+def get_guess(localmaxima, fwhm_avg):
+    """
+    Gets guess for use in curve fitting code
+    :localmaxima: list of all peak locations
+    :fwhm_avg: the average length (estimate ok) of the FWHM of the peaks
+    :return: guess formatted for curve fitting code
+    """
+    guess = fwhm_avg * np.ones(len(localmaxima) * 2)
+    guess[:len(localmaxima)] = localmaxima
+    return guess
 
 def get_power_broadened_spectrum(frequencies, transition_bvec, static_bvec, initial_populations,
-                                  p: NVGroundParameters14N=NVGroundParameters14N()):
+                                  p: NVGroundParameters14N=NVGroundParameters14N(), peaks = None):
     """
     Gets the power-broadened spectrum for a single NV-configuration. Applied magnetic field and RF field amplitude are
     fixed.
@@ -312,7 +354,7 @@ def get_power_broadened_spectrum(frequencies, transition_bvec, static_bvec, init
     return spectrum
 
 def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state,
-                                  p: NVGroundParameters14N=NVGroundParameters14N()):
+                                  p: NVGroundParameters14N=NVGroundParameters14N(), peaks = None):
     """
     Gets the spectral average over all possible NV axis directions (legs of tetrahedron)
     Args:
@@ -332,20 +374,118 @@ def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, s
     for i, bvec in enumerate(bvecs):
         spectrum += get_power_broadened_spectrum(frequencies, np.array(transition_bvecs[i]), bvec,
                                                  initial_populations=initial_state)
-    return spectrum / len(bvecs)
+    return spectrum/max(spectrum)
+
+def get_bfields_from_peaks_ensemble(peaks):
+    """
+    Assumes that the spectra being examined has been taken from an ensemble collection of mixed-orientation NV centers.
+    There may be ambiguity in which peak-pair corresponds to which NV-axis, so this code returns four possible magnetic
+    field vectors. Assumes the outermost pair is the splitting of the [1,1,1] axis for the first magnetic field
+    calculation. Assumes symmetric splitting of all peaks.
+    :peaks: the locations of the peaks in the spectrum (should have a length of 8, do not have to be ordered)
+    :returns: four possible magnetic fields
+    """
+    peaks.sort()
+    angs = np.zeros(4)
+    mag = get_bfield_mag_angle_singleNV(peaks[len(peaks) - 1], peaks[0])[0]
+    for i in range(4):
+        angs[i] = get_bfield_mag_angle_singleNV(peaks[len(peaks) - 1 - i], peaks[i])[0]
+
+    N = np.array([[1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]])
+    bvec = np.linalg.inv(N.transpose()@N)@N.transpose()@angs
+    x = mag / np.linalg.norm(bvec)
+    return x * bvec
+
+def get_bfield_mag_angle_singleNV(f_upper, f_lower):
+    """
+    Gets the angle between the applied magnetic field and a given nv-axis, and gives the field magnitude. Assumes
+    symmetric splitting about 2.87 GHz.
+    See https://magnetometryrp.quantumtinkerer.tudelft.nl/3_NVspin/
+    :peaks: the location of the two spectra peaks
+    :returns: the angle between the magnetic field and the given axis and field magnitude
+    """
+    bmag = np.sqrt((f_upper**2 + f_lower**2 - f_lower * f_upper - (2.87E9)**2) / 3) / (28.E9)
+    cos2 = ((-(f_upper + f_lower)**3 + 3 * f_upper**3 + 3 * f_lower**3 + 2 * (2.87E9)**3) / (27 * 2.87E9 *
+                                                                                         (28.E9 * bmag)**2)) + (1/3)
+    if cos2 > 1:
+        print("Arccos bounds exceeded. Rounding down, but please check for reasonability. Cos^2(ang) = " + str(cos2))
+        return bmag, 0
+    if cos2 < -1:
+        print("Arccos bounds exceeded. Rounding up, but please check for reasonability. Cos^2(ang) = " + str(cos2))
+        return bmag, np.pi
+    else:
+        return bmag, math.acos(np.sqrt(cos2))
 
 
 if __name__ == "__main__":
 
+    # Parameters
     static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
-    transition_bvec = np.array([0., 0., 0.000034])
+    transition_bvec = np.array([0., 0., 1.E-4])
     initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
-    frequencies = np.linspace(2.8E9, 2.95E9, num=2**16)
+    frequencies = np.linspace(2.8E9, 2.94E9, num=2**16)
 
+    # Spectrum
     spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
-    spectrum = spectrum/max(spectrum)
-    fig = plt.plot(frequencies, spectrum)
+
+    # Make noisy data
+    frequencies = np.linspace(2.8E9, 2.94E9, num=600)  # Decreased resolution
+    spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, [0.002, 0.0005, -0.001],
+                                                            initial_state)
+    noise = np.random.normal(0, 0.01, 600)  # Added noise
+    spectrum = spectrum + noise
+
+    # Plot
+    fig1 = plt.plot(frequencies, spectrum)
     plt.xlabel("Applied Wave Frequency (Hz)")
     plt.ylabel("Signal Strength Normalized")
     plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
-    plt.show()
+
+    # Curve fitting
+    localmax = np.array([2.8118E9, 2.8139E9, 2.8161E9, 2.8287E9, 2.8309E9, 2.8331E9,
+                            2.8454E9, 2.8476E9, 2.8498E9, 2.8619E9, 2.8640E9, 2.8662E9,
+                            2.8780E9, 2.8802E9, 2.8823E9, 2.8942E9, 2.8961E9, 2.8982E9,
+                            2.9096E9, 2.9118E9, 2.9139E9, 2.9250E9, 2.9271E9, 2.9294E9]) # Set manually
+    # guess = get_guess(localmax, 6.E5)
+    # bounds_in = get_bounds(guess, 1.E4, 6.E5)
+    # minimizer_kwargs = {"method": "L-BFGS-B"}
+    # result = annealing.curve_fit(lorentz_lineshape_fit, frequencies, spectrum, x0=guess, bounds=bounds_in, maxiter=1000)
+    #
+    # # Results/plotting
+    # mins = result.x[:len(localmax)]
+    # aps = result.x[len(localmax):int(len(localmax)*2)]
+    # print(result.x)
+    # frequencies = np.linspace(2.8E9, 2.94E9, num=2 ** 16)
+    # fig2 = plt.plot(frequencies, lorentz_lineshape_fit(frequencies, result.x))
+    # plt.show()
+    res = get_bfields_from_peaks_ensemble(localmax)
+    print(res)
+    print(static_bvec)
+
+
+#------------------------------------------------------------------------------------------------------------------------
+    # # Parameters
+    # static_bvec = 0.018 * np.array([1, 1, 1])
+    # transition_bvec = np.array([0., 0., 1.E-4])
+    # initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
+    # frequencies = np.linspace(1E9, 4.7E9, num=2**16)
+    #
+    # # Spectrum
+    # spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
+    #
+    # # Plot
+    # fig1 = plt.plot(frequencies, spectrum)
+    # plt.xlabel("Applied Wave Frequency (Hz)")
+    # plt.ylabel("Signal Strength Normalized")
+    # plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
+    # #plt.show()
+    #
+    # mag, ang = get_bfield_mag_angle_singleNV(3.7439E9, 1.9959E9)
+    # print(ang)
+    # print(mag)
+    #
+    # # Fails, because peaks with assymetric splitting are referenced.
+    # mag, ang = get_bfield_mag_angle_singleNV(3.5044E9, 2.8992E9)
+    # print(ang)
+    # print(mag)
+
