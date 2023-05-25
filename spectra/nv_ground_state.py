@@ -337,15 +337,19 @@ def get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, s
 
 if __name__ == "__main__":
 
-    static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
-    transition_bvec = np.array([0., 0., 0.000034])
+    theta = 30. * np.pi / 180. # Polar angle
+    phi = 120. * np.pi / 180.
+    bmag = 0.012
+    transition_bvec = 5.E-4 * np.array([0., 0., 1.])
+    static_bvec = bmag * np.array([0.6, 1., 0.6])
+    #static_bvec = bmag * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
     initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
-    frequencies = np.linspace(2.8E9, 2.95E9, num=2**16)
+    frequencies = np.linspace(2.0E9, 3.9E9, num=2**16)
 
     spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
     spectrum = spectrum/max(spectrum)
     fig = plt.plot(frequencies, spectrum)
     plt.xlabel("Applied Wave Frequency (Hz)")
     plt.ylabel("Signal Strength Normalized")
-    plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
+    plt.title(f"Simulation of CW-ODMR for a Given Static and Transient Magnetic Field\n bvec: {static_bvec} T")
     plt.show()
