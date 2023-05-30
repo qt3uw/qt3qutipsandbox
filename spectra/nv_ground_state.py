@@ -405,8 +405,7 @@ def get_bfield_mag_angle_singleNV(f_upper, f_lower):
     :returns: the angle between the magnetic field and the given axis and field magnitude
     """
     bmag = np.sqrt((f_upper**2 + f_lower**2 - f_lower * f_upper - (2.87E9)**2) / 3) / (28.E9)
-    cos2 = ((-(f_upper + f_lower)**3 + 3 * f_upper**3 + 3 * f_lower**3 + 2 * (2.87E9)**3) / (27 * 2.87E9 *
-                                                                                         (28.E9 * bmag)**2)) + (1/3)
+    cos2 = ((-(f_upper + f_lower)**3 + 3 * f_upper**3 + 3 * f_lower**3 + 2 * (2.87E9)**3) / (27 * 2.87E9 * bmag**2)) + (1/3)
     if cos2 > 1:
         print("Arccos bounds exceeded. Rounding down, but please check for reasonability. Cos^2(ang) = " + str(cos2))
         return bmag, 0
@@ -416,36 +415,49 @@ def get_bfield_mag_angle_singleNV(f_upper, f_lower):
     else:
         return bmag, math.acos(np.sqrt(cos2))
 
+def get_n_guess(bvec):
+    nvs = np.array([[1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]])
+    dot_ps = np.array([bvec@[1,1,1], bvec@[-1,-1,1], bvec@[-1,1,-1], bvec@[1,-1,-1]])
+    nvs_new = []
+    while dot_ps != np.zeros(4):
+        for i in range(4):
+            if dot_ps[i] == max(dot_ps):
+                nvs_new = nvs_new + nvs[i]
+                dot_ps[i] = 0
+    return nvs_new
+
 
 if __name__ == "__main__":
 
-    # Parameters
-    static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
-    transition_bvec = np.array([0., 0., 1.E-4])
-    initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
-    frequencies = np.linspace(2.8E9, 2.94E9, num=2**16)
+    # TESTS
 
-    # Spectrum
-    spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
-
-    # Make noisy data
-    frequencies = np.linspace(2.8E9, 2.94E9, num=600)  # Decreased resolution
-    spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, [0.002, 0.0005, -0.001],
-                                                            initial_state)
-    noise = np.random.normal(0, 0.01, 600)  # Added noise
-    spectrum = spectrum + noise
-
-    # Plot
-    fig1 = plt.plot(frequencies, spectrum)
-    plt.xlabel("Applied Wave Frequency (Hz)")
-    plt.ylabel("Signal Strength Normalized")
-    plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
-
-    # Curve fitting
-    localmax = np.array([2.8118E9, 2.8139E9, 2.8161E9, 2.8287E9, 2.8309E9, 2.8331E9,
-                            2.8454E9, 2.8476E9, 2.8498E9, 2.8619E9, 2.8640E9, 2.8662E9,
-                            2.8780E9, 2.8802E9, 2.8823E9, 2.8942E9, 2.8961E9, 2.8982E9,
-                            2.9096E9, 2.9118E9, 2.9139E9, 2.9250E9, 2.9271E9, 2.9294E9]) # Set manually
+    # # Parameters
+    # static_bvec = 0.005 * np.array([0.4, 0.1, -0.2])
+    # transition_bvec = np.array([0., 0., 1.E-4])
+    # initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
+    # frequencies = np.linspace(2.8E9, 2.94E9, num=2**16)
+    #
+    # # Spectrum
+    # spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
+    #
+    # # Make noisy data
+    # frequencies = np.linspace(2.8E9, 2.94E9, num=600)  # Decreased resolution
+    # spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, [0.002, 0.0005, -0.001],
+    #                                                         initial_state)
+    # noise = np.random.normal(0, 0.01, 600)  # Added noise
+    # spectrum = spectrum + noise
+    #
+    # # Plot
+    # fig1 = plt.plot(frequencies, spectrum)
+    # plt.xlabel("Applied Wave Frequency (Hz)")
+    # plt.ylabel("Signal Strength Normalized")
+    # plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
+    #
+    # # Curve fitting
+    # localmax = np.array([2.8118E9, 2.8139E9, 2.8161E9, 2.8287E9, 2.8309E9, 2.8331E9,
+    #                         2.8454E9, 2.8476E9, 2.8498E9, 2.8619E9, 2.8640E9, 2.8662E9,
+    #                         2.8780E9, 2.8802E9, 2.8823E9, 2.8942E9, 2.8961E9, 2.8982E9,
+    #                         2.9096E9, 2.9118E9, 2.9139E9, 2.9250E9, 2.9271E9, 2.9294E9]) # Set manually
     # guess = get_guess(localmax, 6.E5)
     # bounds_in = get_bounds(guess, 1.E4, 6.E5)
     # minimizer_kwargs = {"method": "L-BFGS-B"}
@@ -458,34 +470,37 @@ if __name__ == "__main__":
     # frequencies = np.linspace(2.8E9, 2.94E9, num=2 ** 16)
     # fig2 = plt.plot(frequencies, lorentz_lineshape_fit(frequencies, result.x))
     # plt.show()
-    res = get_bfields_from_peaks_ensemble(localmax)
-    print(res)
-    print(static_bvec)
+    # res = get_bfields_from_peaks_ensemble(localmax)
+    # print(res)
+    # print(static_bvec)
 
 
 #------------------------------------------------------------------------------------------------------------------------
-    # # Parameters
-    # static_bvec = 0.018 * np.array([1, 1, 1])
-    # transition_bvec = np.array([0., 0., 1.E-4])
-    # initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
-    # frequencies = np.linspace(1E9, 4.7E9, num=2**16)
-    #
-    # # Spectrum
-    # spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
-    #
-    # # Plot
-    # fig1 = plt.plot(frequencies, spectrum)
-    # plt.xlabel("Applied Wave Frequency (Hz)")
-    # plt.ylabel("Signal Strength Normalized")
-    # plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
-    # #plt.show()
-    #
-    # mag, ang = get_bfield_mag_angle_singleNV(3.7439E9, 1.9959E9)
-    # print(ang)
-    # print(mag)
-    #
-    # # Fails, because peaks with assymetric splitting are referenced.
-    # mag, ang = get_bfield_mag_angle_singleNV(3.5044E9, 2.8992E9)
-    # print(ang)
-    # print(mag)
+    # Parameters
+    static_bvec = 0.018 * np.array([1, 1, 1])
+    transition_bvec = np.array([0., 0., 1.E-4])
+    initial_state = [1 / 3., 1 / 3., 1 / 3., 0, 0, 0, 0, 0, 0]
+    frequencies = np.linspace(1E9, 4.7E9, num=2**16)
+
+    # Spectrum
+    spectrum = get_power_broadened_spectrum_nv_axis_average(frequencies, transition_bvec, static_bvec, initial_state)
+
+    # Plot
+    fig1 = plt.plot(frequencies, spectrum)
+    plt.xlabel("Applied Wave Frequency (Hz)")
+    plt.ylabel("Signal Strength Normalized")
+    plt.title("Simulation of CW-ODMR for a Given Static and Transient Magnetic Field")
+    #plt.show()
+
+    mag, ang = get_bfield_mag_angle_singleNV(3.7439E9, 1.9959E9)
+    print(ang)
+    print(mag)
+
+    # Fails, because peaks with assymetric splitting are referenced.
+    mag, ang = get_bfield_mag_angle_singleNV(3.5044E9, 2.8992E9)
+    print(ang)
+    print(mag)
+
+    #res = get_n_guess(0.018 * np.array([1, 1, 1]))
+    #print(res)
 
